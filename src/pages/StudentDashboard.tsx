@@ -5,7 +5,7 @@ import { useWeb3 } from '@/context/Web3Context';
 import { useUser } from '@/context/UserContext';
 import Layout from '@/components/Layout';
 import FileUpload from '@/components/FileUpload';
-import { uploadToIPFS, viewIPFS, downloadFromIPFS } from '@/utils/ipfs';
+import { uploadToIPFS, viewIPFS, downloadFromIPFS, isValidCID } from '@/utils/ipfs';
 import { getStudentCertificates, uploadCertificate, giveAccess, requestInstituteChange } from '@/utils/contracts';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -42,7 +42,7 @@ import {
 } from 'lucide-react';
 
 interface Certificate {
-  id: string;
+  id: number;
   name: string;
   issueDate: string;
   status: 'pending' | 'approved';
@@ -65,6 +65,8 @@ const StudentDashboard = () => {
   const [selectedCertificateForAccess, setSelectedCertificateForAccess] = useState<Certificate | null>(null);
   const [downloadLoading, setDownloadLoading] = useState(false);
   const [viewLoading, setViewLoading] = useState(false);
+  const [changeInstituteLoading, setChangeInstituteLoading] = useState(false);
+  const [grantAccessLoading, setGrantAccessLoading] = useState(false);
 
   // Check if user is authenticated
   useEffect(() => {
@@ -82,9 +84,9 @@ const StudentDashboard = () => {
           const certificateData = await getStudentCertificates(signer, account);
           
           // Map the returned data to match our Certificate interface
-          const formattedCertificates: Certificate[] = certificateData.map((cert, index) => ({
-            id: `cert-${cert.id || index + 1}`,
-            name: `Certificate ${cert.id || index + 1}`,
+          const formattedCertificates: Certificate[] = certificateData.map((cert) => ({
+            id: cert.id,
+            name: `Certificate ${cert.id}`,
             issueDate: new Date(cert.timestamp).toLocaleDateString(),
             status: cert.approved ? 'approved' : 'pending',
             ipfsHash: cert.ipfsHash,
@@ -112,7 +114,7 @@ const StudentDashboard = () => {
   };
 
   const handleUploadCertificate = async () => {
-    if (!selectedFile || !signer) return;
+    if (!selectedFile || !signer || !account) return;
 
     try {
       setUploadLoading(true);
@@ -121,19 +123,22 @@ const StudentDashboard = () => {
       const ipfsHash = await uploadToIPFS(selectedFile);
       
       // Upload certificate reference to contract
-      const success = await uploadCertificate(signer, account!, ipfsHash);
+      const success = await uploadCertificate(signer, account, ipfsHash);
       
       if (success) {
-        // Add certificate to list
-        const newCertificate: Certificate = {
-          id: `cert-${certificates.length + 1}`,
-          name: selectedFile.name.replace('.pdf', ''),
-          issueDate: new Date().toLocaleDateString(),
-          status: 'pending',
-          ipfsHash,
-        };
+        // Refresh certificates list
+        const certificateData = await getStudentCertificates(signer, account);
         
-        setCertificates([newCertificate, ...certificates]);
+        // Map the returned data to match our Certificate interface
+        const formattedCertificates: Certificate[] = certificateData.map((cert) => ({
+          id: cert.id,
+          name: `Certificate ${cert.id}`,
+          issueDate: new Date(cert.timestamp).toLocaleDateString(),
+          status: cert.approved ? 'approved' : 'pending',
+          ipfsHash: cert.ipfsHash,
+        }));
+        
+        setCertificates(formattedCertificates);
         
         toast({
           title: "Upload Successful",
@@ -159,7 +164,12 @@ const StudentDashboard = () => {
   const handleViewOnIPFS = (cert: Certificate) => {
     setViewLoading(true);
     try {
+      if (!isValidCID(cert.ipfsHash)) {
+        throw new Error("Invalid IPFS hash");
+      }
+      
       viewIPFS(cert.ipfsHash);
+      
       toast({
         title: "Opening Certificate",
         description: "The certificate is opening in a new tab",
@@ -179,6 +189,10 @@ const StudentDashboard = () => {
   const handleDownloadCertificate = async (cert: Certificate) => {
     setDownloadLoading(true);
     try {
+      if (!isValidCID(cert.ipfsHash)) {
+        throw new Error("Invalid IPFS hash");
+      }
+      
       const filename = `${cert.name}.pdf`;
       await downloadFromIPFS(cert.ipfsHash, filename);
       
@@ -220,16 +234,13 @@ const StudentDashboard = () => {
     if (!signer) return;
 
     try {
-      setLoading(true);
-      
-      // Extract the certificate ID from the string format "cert-X"
-      const certificateId = parseInt(selectedCertificateForAccess.id.split('-')[1]);
+      setGrantAccessLoading(true);
       
       // Call the contract function
       const success = await giveAccess(
         signer, 
         accessAddress, 
-        certificateId, 
+        selectedCertificateForAccess.id, 
         parseInt(accessDuration)
       );
       
@@ -253,7 +264,7 @@ const StudentDashboard = () => {
         variant: "destructive",
       });
     } finally {
-      setLoading(false);
+      setGrantAccessLoading(false);
     }
   };
 
@@ -270,7 +281,7 @@ const StudentDashboard = () => {
     if (!signer) return;
 
     try {
-      setLoading(true);
+      setChangeInstituteLoading(true);
       
       // Call the contract function
       const success = await requestInstituteChange(signer, newInstituteAddress);
@@ -292,7 +303,7 @@ const StudentDashboard = () => {
         variant: "destructive",
       });
     } finally {
-      setLoading(false);
+      setChangeInstituteLoading(false);
     }
   };
 
@@ -538,9 +549,9 @@ const StudentDashboard = () => {
               <Button 
                 onClick={handleGiveAccess} 
                 className="w-full mt-4"
-                disabled={!selectedCertificateForAccess || !accessAddress || loading}
+                disabled={!selectedCertificateForAccess || !accessAddress || grantAccessLoading}
               >
-                {loading ? (
+                {grantAccessLoading ? (
                   <>
                     <Loader2 className="mr-2 h-4 w-4 animate-spin" />
                     Processing...
@@ -593,9 +604,9 @@ const StudentDashboard = () => {
               <Button 
                 onClick={handleChangeInstitute} 
                 className="w-full mt-4"
-                disabled={!newInstituteAddress || loading}
+                disabled={!newInstituteAddress || changeInstituteLoading}
               >
-                {loading ? (
+                {changeInstituteLoading ? (
                   <>
                     <Loader2 className="mr-2 h-4 w-4 animate-spin" />
                     Processing...
@@ -681,7 +692,7 @@ const StudentDashboard = () => {
               <div className="bg-gray-50 p-3 rounded-md">
                 <h3 className="text-sm font-medium text-gray-700 mb-2">Current Institute</h3>
                 <p className="text-xs text-gray-500 break-all">
-                  {user.instituteAddress}
+                  {user.instituteAddress || "Not assigned"}
                 </p>
               </div>
               

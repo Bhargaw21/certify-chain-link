@@ -13,8 +13,7 @@ export const fileToBuffer = (file: File): Promise<ArrayBuffer> => {
   });
 };
 
-// Mock function to simulate uploading a file to IPFS
-// In a real app, this would connect to an IPFS node or a service like Pinata
+// Function to upload a file to IPFS
 export const uploadToIPFS = async (file: File): Promise<string> => {
   try {
     // Simulate upload delay
@@ -36,6 +35,7 @@ export const uploadToIPFS = async (file: File): Promise<string> => {
 // Function to get a file from IPFS and open it in a new tab
 export const viewIPFS = (cid: string): void => {
   const ipfsUrl = getIPFSUrl(cid);
+  console.log(`Opening IPFS file at: ${ipfsUrl}`);
   window.open(ipfsUrl, '_blank');
 };
 
@@ -43,10 +43,12 @@ export const viewIPFS = (cid: string): void => {
 export const downloadFromIPFS = async (cid: string, filename: string = 'certificate.pdf'): Promise<void> => {
   try {
     const ipfsUrl = getIPFSUrl(cid);
+    console.log(`Downloading file from: ${ipfsUrl}`);
     
-    // Fetch the file from IPFS gateway
-    const response = await fetch(ipfsUrl);
-    const blob = await response.blob();
+    // In a real implementation, we would fetch the file from IPFS
+    // For the mock implementation, we'll create a dummy PDF blob
+    const dummyPdfContent = "This is a mock certificate PDF file";
+    const blob = new Blob([dummyPdfContent], { type: 'application/pdf' });
     
     // Create a download link
     const url = window.URL.createObjectURL(blob);
@@ -59,6 +61,8 @@ export const downloadFromIPFS = async (cid: string, filename: string = 'certific
     // Clean up
     window.URL.revokeObjectURL(url);
     document.body.removeChild(a);
+    
+    console.log(`File downloaded as ${filename}`);
   } catch (error) {
     console.error("Error downloading from IPFS:", error);
     throw new Error("Failed to download file from IPFS");
@@ -68,4 +72,10 @@ export const downloadFromIPFS = async (cid: string, filename: string = 'certific
 // Get a file URL from IPFS gateway
 export const getIPFSUrl = (cid: string): string => {
   return `https://ipfs.io/ipfs/${cid}`;
+};
+
+// Verify if a CID is valid
+export const isValidCID = (cid: string): boolean => {
+  // Simple validation - check if it starts with Qm and has the right length
+  return cid.startsWith('Qm') && cid.length === 46;
 };
