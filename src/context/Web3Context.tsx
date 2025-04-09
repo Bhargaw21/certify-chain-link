@@ -1,4 +1,3 @@
-
 import React, { createContext, useContext, useState, useEffect } from 'react';
 import { ethers } from 'ethers';
 import { toast } from "@/components/ui/use-toast";
@@ -40,14 +39,12 @@ export const Web3Provider: React.FC<{ children: React.ReactNode }> = ({ children
         setProvider(provider);
         setSigner(signer);
         
-        // Get connected accounts
         const accounts = await provider.listAccounts();
         if (accounts.length > 0) {
           setAccount(accounts[0]);
           setIsConnected(true);
         }
         
-        // Get network information
         const network = await provider.getNetwork();
         setChainId(network.chainId);
         
@@ -65,7 +62,6 @@ export const Web3Provider: React.FC<{ children: React.ReactNode }> = ({ children
   const connectWallet = async () => {
     if (window.ethereum) {
       try {
-        // Request account access
         const accounts = await window.ethereum.request({ method: 'eth_requestAccounts' });
         const provider = new ethers.providers.Web3Provider(window.ethereum);
         const signer = provider.getSigner();
@@ -138,7 +134,9 @@ export const Web3Provider: React.FC<{ children: React.ReactNode }> = ({ children
     
     return () => {
       if (window.ethereum) {
-        window.ethereum.removeAllListeners();
+        window.ethereum.removeAllListeners('accountsChanged');
+        window.ethereum.removeAllListeners('chainChanged');
+        window.ethereum.removeAllListeners('disconnect');
       }
     };
   }, []);
