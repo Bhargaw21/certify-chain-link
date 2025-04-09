@@ -1,4 +1,3 @@
-
 import React, { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { ethers } from 'ethers';
@@ -77,18 +76,18 @@ const StudentDashboard = () => {
       if (signer && account) {
         try {
           setLoading(true);
-          const certificateHashes = await getStudentCertificates(signer, account);
+          const certificateData = await getStudentCertificates(signer, account);
           
-          // Mock certificates data
-          const mockCertificates: Certificate[] = certificateHashes.map((hash, index) => ({
-            id: `cert-${index + 1}`,
-            name: `Certificate ${index + 1}`,
-            issueDate: new Date(Date.now() - index * 86400000 * 30).toLocaleDateString(),
-            status: index % 3 === 0 ? 'pending' : 'approved',
-            ipfsHash: hash,
+          // Map the returned data to match our Certificate interface
+          const formattedCertificates: Certificate[] = certificateData.map((cert, index) => ({
+            id: `cert-${cert.id || index + 1}`,
+            name: `Certificate ${cert.id || index + 1}`,
+            issueDate: new Date(cert.timestamp).toLocaleDateString(),
+            status: cert.approved ? 'approved' : 'pending',
+            ipfsHash: cert.ipfsHash,
           }));
           
-          setCertificates(mockCertificates);
+          setCertificates(formattedCertificates);
         } catch (error) {
           console.error("Error fetching certificates:", error);
           toast({
