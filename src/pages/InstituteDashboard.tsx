@@ -6,7 +6,13 @@ import { useUser } from '@/context/UserContext';
 import Layout from '@/components/Layout';
 import FileUpload from '@/components/FileUpload';
 import { uploadToIPFS } from '@/utils/ipfs';
-import { getLinkedStudents, getAccessLogs, uploadCertificate } from '@/utils/contracts';
+import { 
+  getLinkedStudents, 
+  getAccessLogs, 
+  uploadCertificate, 
+  approveCertificate,
+  approveInstituteChange 
+} from '@/utils/contracts';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
@@ -111,7 +117,7 @@ const InstituteDashboard = () => {
           // Get linked students
           const studentsData = await getLinkedStudents(signer);
           
-          // Mock students data
+          // Map students data
           const mockStudents: Student[] = studentsData.map((student, index) => ({
             id: `student-${index + 1}`,
             address: student.address,
@@ -135,7 +141,7 @@ const InstituteDashboard = () => {
           
           setCertificates(mockCertificates);
           
-          // Mock access logs
+          // Get access logs
           const logsData = await getAccessLogs(signer);
           const mockAccessLogs: AccessLog[] = logsData.map((log, index) => ({
             id: `log-${index + 1}`,
@@ -242,24 +248,73 @@ const InstituteDashboard = () => {
     }
   };
 
-  const handleApproveCertificate = (certId: string) => {
-    setCertificates(certificates.map(cert => 
-      cert.id === certId ? { ...cert, status: 'approved' } : cert
-    ));
-    
-    toast({
-      title: "Certificate Approved",
-      description: "The certificate has been verified and approved",
-    });
+  const handleApproveCertificate = async (cert: Certificate) => {
+    if (!signer) return;
+
+    try {
+      setLoading(true);
+      
+      // Extract the certificate ID from the string format "cert-X"
+      const certificateId = parseInt(cert.id.split('-')[1]);
+      
+      // Call the contract function
+      const success = await approveCertificate(signer, cert.studentAddress, certificateId);
+      
+      if (success) {
+        // Update certificate status
+        setCertificates(certificates.map(c => 
+          c.id === cert.id ? { ...c, status: 'approved' } : c
+        ));
+        
+        toast({
+          title: "Certificate Approved",
+          description: "The certificate has been verified and approved",
+        });
+      } else {
+        throw new Error("Approval failed");
+      }
+    } catch (error) {
+      console.error("Error approving certificate:", error);
+      toast({
+        title: "Error",
+        description: "Failed to approve certificate. Please try again.",
+        variant: "destructive",
+      });
+    } finally {
+      setLoading(false);
+    }
   };
 
-  const handleApproveChangeRequest = (requestId: string) => {
-    setChangeRequests(changeRequests.filter(req => req.id !== requestId));
-    
-    toast({
-      title: "Request Approved",
-      description: "The institute change request has been approved",
-    });
+  const handleApproveChangeRequest = async (request: ChangeRequest) => {
+    if (!signer) return;
+
+    try {
+      setLoading(true);
+      
+      // Call the contract function
+      const success = await approveInstituteChange(signer, request.studentAddress);
+      
+      if (success) {
+        // Remove request from list
+        setChangeRequests(changeRequests.filter(req => req.id !== request.id));
+        
+        toast({
+          title: "Request Approved",
+          description: "The institute change request has been approved",
+        });
+      } else {
+        throw new Error("Approval failed");
+      }
+    } catch (error) {
+      console.error("Error approving change request:", error);
+      toast({
+        title: "Error",
+        description: "Failed to approve request. Please try again.",
+        variant: "destructive",
+      });
+    } finally {
+      setLoading(false);
+    }
   };
 
   const filteredStudents = students.filter(student => 
@@ -414,7 +469,7 @@ const InstituteDashboard = () => {
           <div className="bg-white rounded-lg shadow-sm p-6">
             <div className="flex justify-between items-center mb-6">
               <h2 className="text-xl font-semibold">Certificates</h2>
-              <Tabs value={certificatesTabValue} onValueChange={setCertificatesTabValue} className="w-[400px]">
+              <Tabs value={certificatesTabValue} onValueChange={setCertificatesTabValue}>
                 <TabsList>
                   <TabsTrigger value="all">All</TabsTrigger>
                   <TabsTrigger value="pending">Pending</TabsTrigger>
@@ -457,10 +512,20 @@ const InstituteDashboard = () => {
                       {cert.status === 'pending' ? (
                         <Button 
                           className="w-full"
-                          onClick={() => handleApproveCertificate(cert.id)}
+                          onClick={() => handleApproveCertificate(cert)}
+                          disabled={loading}
                         >
-                          <CheckSquare className="w-4 h-4 mr-2" />
-                          Approve Certificate
+                          {loading ? (
+                            <>
+                              <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                              Processing...
+                            </>
+                          ) : (
+                            <>
+                              <CheckSquare className="w-4 h-4 mr-2" />
+                              Approve Certificate
+                            </>
+                          )}
                         </Button>
                       ) : (
                         <Button 
@@ -664,9 +729,17 @@ const InstituteDashboard = () => {
                       </Button>
                       <Button 
                         size="sm"
-                        onClick={() => handleApproveChangeRequest(request.id)}
+                        onClick={() => handleApproveChangeRequest(request)}
+                        disabled={loading}
                       >
-                        Approve Request
+                        {loading ? (
+                          <>
+                            <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                            Processing...
+                          </>
+                        ) : (
+                          <>Approve Request</>
+                        )}
                       </Button>
                     </CardFooter>
                   </Card>

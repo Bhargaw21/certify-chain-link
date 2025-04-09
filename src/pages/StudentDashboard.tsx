@@ -7,7 +7,7 @@ import { useUser } from '@/context/UserContext';
 import Layout from '@/components/Layout';
 import FileUpload from '@/components/FileUpload';
 import { uploadToIPFS } from '@/utils/ipfs';
-import { getStudentCertificates, uploadCertificate } from '@/utils/contracts';
+import { getStudentCertificates, uploadCertificate, giveAccess, requestInstituteChange } from '@/utils/contracts';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
@@ -63,6 +63,7 @@ const StudentDashboard = () => {
   const [newInstituteAddress, setNewInstituteAddress] = useState('');
   const [selectedCertificate, setSelectedCertificate] = useState<Certificate | null>(null);
   const [selectedFile, setSelectedFile] = useState<File | null>(null);
+  const [selectedCertificateForAccess, setSelectedCertificateForAccess] = useState<Certificate | null>(null);
 
   // Check if user is authenticated
   useEffect(() => {
@@ -154,7 +155,7 @@ const StudentDashboard = () => {
     }
   };
 
-  const handleGiveAccess = () => {
+  const handleGiveAccess = async () => {
     if (!ethers.utils.isAddress(accessAddress)) {
       toast({
         title: "Invalid Address",
@@ -164,19 +165,56 @@ const StudentDashboard = () => {
       return;
     }
 
-    // Mock API call
-    setTimeout(() => {
+    if (!selectedCertificateForAccess) {
       toast({
-        title: "Access Granted",
-        description: `Access granted to ${accessAddress.substring(0, 6)}...${accessAddress.substring(
-          accessAddress.length - 4
-        )} for ${accessDuration} hours`,
+        title: "No Certificate Selected",
+        description: "Please select a certificate to give access to",
+        variant: "destructive",
       });
-      setAccessAddress('');
-    }, 1000);
+      return;
+    }
+
+    if (!signer) return;
+
+    try {
+      setLoading(true);
+      
+      // Extract the certificate ID from the string format "cert-X"
+      const certificateId = parseInt(selectedCertificateForAccess.id.split('-')[1]);
+      
+      // Call the contract function
+      const success = await giveAccess(
+        signer, 
+        accessAddress, 
+        certificateId, 
+        parseInt(accessDuration)
+      );
+      
+      if (success) {
+        toast({
+          title: "Access Granted",
+          description: `Access granted to ${accessAddress.substring(0, 6)}...${accessAddress.substring(
+            accessAddress.length - 4
+          )} for ${accessDuration} hours`,
+        });
+        setAccessAddress('');
+        setSelectedCertificateForAccess(null);
+      } else {
+        throw new Error("Failed to grant access");
+      }
+    } catch (error) {
+      console.error("Error granting access:", error);
+      toast({
+        title: "Error",
+        description: "Failed to grant access. Please try again.",
+        variant: "destructive",
+      });
+    } finally {
+      setLoading(false);
+    }
   };
 
-  const handleChangeInstitute = () => {
+  const handleChangeInstitute = async () => {
     if (!ethers.utils.isAddress(newInstituteAddress)) {
       toast({
         title: "Invalid Address",
@@ -186,14 +224,33 @@ const StudentDashboard = () => {
       return;
     }
 
-    // Mock API call
-    setTimeout(() => {
+    if (!signer) return;
+
+    try {
+      setLoading(true);
+      
+      // Call the contract function
+      const success = await requestInstituteChange(signer, newInstituteAddress);
+      
+      if (success) {
+        toast({
+          title: "Request Sent",
+          description: "Your request to change institute has been sent for approval",
+        });
+        setNewInstituteAddress('');
+      } else {
+        throw new Error("Failed to send request");
+      }
+    } catch (error) {
+      console.error("Error requesting institute change:", error);
       toast({
-        title: "Request Sent",
-        description: "Your request to change institute has been sent for approval",
+        title: "Error",
+        description: "Failed to send request. Please try again.",
+        variant: "destructive",
       });
-      setNewInstituteAddress('');
-    }, 1000);
+    } finally {
+      setLoading(false);
+    }
   };
 
   const renderContent = () => {
@@ -354,6 +411,33 @@ const StudentDashboard = () => {
             
             <div className="space-y-4">
               <div className="space-y-2">
+                <Label htmlFor="certificateSelect">Select Certificate</Label>
+                <div className="grid grid-cols-1 gap-3">
+                  {certificates.map((cert) => (
+                    <Button
+                      key={cert.id}
+                      type="button"
+                      variant={selectedCertificateForAccess?.id === cert.id ? "default" : "outline"}
+                      onClick={() => setSelectedCertificateForAccess(cert)}
+                      className={`justify-start text-left h-auto py-2 ${
+                        selectedCertificateForAccess?.id === cert.id ? "" : "border-dashed"
+                      }`}
+                    >
+                      <div className="flex flex-col items-start">
+                        <p className="text-sm font-medium">{cert.name}</p>
+                        <p className="text-xs text-muted-foreground">
+                          {cert.status.charAt(0).toUpperCase() + cert.status.slice(1)} • {cert.issueDate}
+                        </p>
+                      </div>
+                    </Button>
+                  ))}
+                </div>
+                {certificates.length === 0 && (
+                  <p className="text-sm text-gray-500 text-center py-2">No certificates available</p>
+                )}
+              </div>
+
+              <div className="space-y-2">
                 <Label htmlFor="accessAddress">Ethereum Address</Label>
                 <Input
                   id="accessAddress"
@@ -385,9 +469,22 @@ const StudentDashboard = () => {
                 </div>
               </div>
               
-              <Button onClick={handleGiveAccess} className="w-full mt-4">
-                <UserPlus className="mr-2 h-4 w-4" />
-                Grant Access
+              <Button 
+                onClick={handleGiveAccess} 
+                className="w-full mt-4"
+                disabled={!selectedCertificateForAccess || !accessAddress || loading}
+              >
+                {loading ? (
+                  <>
+                    <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                    Processing...
+                  </>
+                ) : (
+                  <>
+                    <UserPlus className="mr-2 h-4 w-4" />
+                    Grant Access
+                  </>
+                )}
               </Button>
             </div>
           </div>
@@ -427,9 +524,22 @@ const StudentDashboard = () => {
                 />
               </div>
               
-              <Button onClick={handleChangeInstitute} className="w-full mt-4">
-                <Building className="mr-2 h-4 w-4" />
-                Submit Request
+              <Button 
+                onClick={handleChangeInstitute} 
+                className="w-full mt-4"
+                disabled={!newInstituteAddress || loading}
+              >
+                {loading ? (
+                  <>
+                    <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                    Processing...
+                  </>
+                ) : (
+                  <>
+                    <Building className="mr-2 h-4 w-4" />
+                    Submit Request
+                  </>
+                )}
               </Button>
             </div>
           </div>
