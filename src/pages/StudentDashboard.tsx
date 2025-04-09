@@ -1,4 +1,3 @@
-
 import React, { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { ethers } from 'ethers';
@@ -6,7 +5,7 @@ import { useWeb3 } from '@/context/Web3Context';
 import { useUser } from '@/context/UserContext';
 import Layout from '@/components/Layout';
 import FileUpload from '@/components/FileUpload';
-import { uploadToIPFS } from '@/utils/ipfs';
+import { uploadToIPFS, viewIPFS, downloadFromIPFS } from '@/utils/ipfs';
 import { getStudentCertificates, uploadCertificate, giveAccess, requestInstituteChange } from '@/utils/contracts';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -64,6 +63,8 @@ const StudentDashboard = () => {
   const [selectedCertificate, setSelectedCertificate] = useState<Certificate | null>(null);
   const [selectedFile, setSelectedFile] = useState<File | null>(null);
   const [selectedCertificateForAccess, setSelectedCertificateForAccess] = useState<Certificate | null>(null);
+  const [downloadLoading, setDownloadLoading] = useState(false);
+  const [viewLoading, setViewLoading] = useState(false);
 
   // Check if user is authenticated
   useEffect(() => {
@@ -152,6 +153,48 @@ const StudentDashboard = () => {
       });
     } finally {
       setUploadLoading(false);
+    }
+  };
+
+  const handleViewOnIPFS = (cert: Certificate) => {
+    setViewLoading(true);
+    try {
+      viewIPFS(cert.ipfsHash);
+      toast({
+        title: "Opening Certificate",
+        description: "The certificate is opening in a new tab",
+      });
+    } catch (error) {
+      console.error("Error viewing certificate:", error);
+      toast({
+        title: "Error",
+        description: "Failed to open the certificate. Please try again.",
+        variant: "destructive",
+      });
+    } finally {
+      setViewLoading(false);
+    }
+  };
+
+  const handleDownloadCertificate = async (cert: Certificate) => {
+    setDownloadLoading(true);
+    try {
+      const filename = `${cert.name}.pdf`;
+      await downloadFromIPFS(cert.ipfsHash, filename);
+      
+      toast({
+        title: "Download Started",
+        description: "Your certificate is being downloaded",
+      });
+    } catch (error) {
+      console.error("Error downloading certificate:", error);
+      toast({
+        title: "Download Failed",
+        description: "Could not download the certificate. Please try again.",
+        variant: "destructive",
+      });
+    } finally {
+      setDownloadLoading(false);
     }
   };
 
@@ -253,6 +296,10 @@ const StudentDashboard = () => {
     }
   };
 
+  const goToInstituteDashboard = () => {
+    navigate('/institute-dashboard');
+  };
+
   const renderContent = () => {
     switch (activeTab) {
       case 'certificates':
@@ -338,12 +385,31 @@ const StudentDashboard = () => {
                             </div>
                           </div>
                           <DialogFooter className="flex flex-col sm:flex-row gap-2">
-                            <Button variant="outline" className="flex-1 sm:flex-none" size="sm">
-                              <Download className="w-4 h-4 mr-2" />
+                            <Button 
+                              variant="outline" 
+                              className="flex-1 sm:flex-none" 
+                              size="sm"
+                              onClick={() => selectedCertificate && handleDownloadCertificate(selectedCertificate)}
+                              disabled={downloadLoading}
+                            >
+                              {downloadLoading ? (
+                                <Loader2 className="w-4 h-4 mr-2 animate-spin" />
+                              ) : (
+                                <Download className="w-4 h-4 mr-2" />
+                              )}
                               Download
                             </Button>
-                            <Button className="flex-1 sm:flex-none" size="sm">
-                              <ExternalLink className="w-4 h-4 mr-2" />
+                            <Button 
+                              className="flex-1 sm:flex-none" 
+                              size="sm"
+                              onClick={() => selectedCertificate && handleViewOnIPFS(selectedCertificate)}
+                              disabled={viewLoading}
+                            >
+                              {viewLoading ? (
+                                <Loader2 className="w-4 h-4 mr-2 animate-spin" />
+                              ) : (
+                                <ExternalLink className="w-4 h-4 mr-2" />
+                              )}
                               View on IPFS
                             </Button>
                           </DialogFooter>
@@ -618,6 +684,15 @@ const StudentDashboard = () => {
                   {user.instituteAddress}
                 </p>
               </div>
+              
+              <Button 
+                variant="outline" 
+                className="w-full mt-4"
+                onClick={goToInstituteDashboard}
+              >
+                <Building className="w-4 h-4 mr-2" />
+                Switch to Institute View
+              </Button>
             </div>
           </div>
           

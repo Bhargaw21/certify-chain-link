@@ -5,7 +5,7 @@ import { useWeb3 } from '@/context/Web3Context';
 import { useUser } from '@/context/UserContext';
 import Layout from '@/components/Layout';
 import FileUpload from '@/components/FileUpload';
-import { uploadToIPFS } from '@/utils/ipfs';
+import { uploadToIPFS, viewIPFS, downloadFromIPFS } from '@/utils/ipfs';
 import { 
   getLinkedStudents, 
   getAccessLogs, 
@@ -48,6 +48,8 @@ import {
   Calendar,
   FileCheck,
   Loader2,
+  Download,
+  ExternalLink,
 } from 'lucide-react';
 
 interface Student {
@@ -99,6 +101,9 @@ const InstituteDashboard = () => {
   const [certificateName, setCertificateName] = useState('');
   const [searchQuery, setSearchQuery] = useState('');
   const [certificatesTabValue, setCertificatesTabValue] = useState('all');
+  const [selectedCertificate, setSelectedCertificate] = useState<Certificate | null>(null);
+  const [downloadLoading, setDownloadLoading] = useState(false);
+  const [viewLoading, setViewLoading] = useState(false);
 
   // Check if user is authenticated
   useEffect(() => {
@@ -181,6 +186,48 @@ const InstituteDashboard = () => {
 
   const handleFileSelected = (file: File) => {
     setSelectedFile(file);
+  };
+
+  const handleViewOnIPFS = (cert: Certificate) => {
+    setViewLoading(true);
+    try {
+      viewIPFS(cert.ipfsHash);
+      toast({
+        title: "Opening Certificate",
+        description: "The certificate is opening in a new tab",
+      });
+    } catch (error) {
+      console.error("Error viewing certificate:", error);
+      toast({
+        title: "Error",
+        description: "Failed to open the certificate. Please try again.",
+        variant: "destructive",
+      });
+    } finally {
+      setViewLoading(false);
+    }
+  };
+
+  const handleDownloadCertificate = async (cert: Certificate) => {
+    setDownloadLoading(true);
+    try {
+      const filename = `${cert.name}.pdf`;
+      await downloadFromIPFS(cert.ipfsHash, filename);
+      
+      toast({
+        title: "Download Started",
+        description: "Your certificate is being downloaded",
+      });
+    } catch (error) {
+      console.error("Error downloading certificate:", error);
+      toast({
+        title: "Download Failed",
+        description: "Could not download the certificate. Please try again.",
+        variant: "destructive",
+      });
+    } finally {
+      setDownloadLoading(false);
+    }
   };
 
   const handleUploadCertificate = async () => {
@@ -315,6 +362,10 @@ const InstituteDashboard = () => {
     } finally {
       setLoading(false);
     }
+  };
+
+  const goToStudentDashboard = () => {
+    navigate('/student-dashboard');
   };
 
   const filteredStudents = students.filter(student => 
@@ -849,12 +900,461 @@ const InstituteDashboard = () => {
                   {account}
                 </p>
               </div>
+              
+              <Button 
+                variant="outline" 
+                className="w-full mt-4"
+                onClick={goToStudentDashboard}
+              >
+                <User className="w-4 h-4 mr-2" />
+                Switch to Student View
+              </Button>
             </div>
           </div>
           
           {/* Main Content */}
           <div className="flex-1">
-            {renderContent()}
+            {activeTab === 'students' && (
+              <div className="bg-white rounded-lg shadow-sm p-6">
+                <div className="flex justify-between items-center mb-6">
+                  <h2 className="text-xl font-semibold">Linked Students</h2>
+                  <div className="relative w-64">
+                    <Search className="absolute left-2 top-2.5 h-4 w-4 text-muted-foreground" />
+                    <Input
+                      placeholder="Search students..."
+                      className="pl-8"
+                      value={searchQuery}
+                      onChange={(e) => setSearchQuery(e.target.value)}
+                    />
+                  </div>
+                </div>
+                
+                {loading ? (
+                  <div className="flex justify-center items-center py-12">
+                    <Loader2 className="w-8 h-8 text-certify-teal animate-spin" />
+                  </div>
+                ) : filteredStudents.length > 0 ? (
+                  <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+                    {filteredStudents.map((student) => (
+                      <Card key={student.id} className="card-hover">
+                        <CardHeader className="pb-2">
+                          <CardTitle className="text-lg">{student.name}</CardTitle>
+                          <CardDescription>{student.email}</CardDescription>
+                        </CardHeader>
+                        <CardContent>
+                          <p className="text-xs text-gray-500 mb-2 break-all">
+                            {student.address}
+                          </p>
+                          {student.pendingCertificates > 0 && (
+                            <div className="flex items-center mt-2">
+                              <div className="px-2 py-1 rounded bg-yellow-100 text-yellow-800 text-xs font-medium">
+                                {student.pendingCertificates} Pending Certificate(s)
+                              </div>
+                            </div>
+                          )}
+                        </CardContent>
+                        <CardFooter className="pt-0">
+                          <Dialog>
+                            <DialogTrigger asChild>
+                              <Button 
+                                variant="outline" 
+                                size="sm"
+                                className="w-full"
+                              >
+                                View Details
+                              </Button>
+                            </DialogTrigger>
+                            <DialogContent>
+                              <DialogHeader>
+                                <DialogTitle>{student.name}</DialogTitle>
+                                <DialogDescription>
+                                  Student Details and Certificates
+                                </DialogDescription>
+                              </DialogHeader>
+                              <div className="space-y-4">
+                                <div className="flex items-center">
+                                  <div className="w-10 h-10 rounded-full bg-certify-teal/10 flex items-center justify-center mr-3">
+                                    <User className="w-5 h-5 text-certify-teal" />
+                                  </div>
+                                  <div>
+                                    <h4 className="text-sm font-medium">{student.name}</h4>
+                                    <p className="text-xs text-gray-500">{student.email}</p>
+                                  </div>
+                                </div>
+                                
+                                <div className="bg-gray-50 p-3 rounded-md">
+                                  <h4 className="text-sm font-medium mb-1">Ethereum Address</h4>
+                                  <p className="text-xs text-gray-500 break-all">
+                                    {student.address}
+                                  </p>
+                                </div>
+                                
+                                <div>
+                                  <h4 className="text-sm font-medium mb-2">Certificates</h4>
+                                  <div className="space-y-2">
+                                    {certificates
+                                      .filter(cert => cert.studentAddress === student.address)
+                                      .map(cert => (
+                                        <div key={cert.id} className="flex justify-between items-center p-2 bg-gray-50 rounded-md">
+                                          <div>
+                                            <p className="text-sm font-medium">{cert.name}</p>
+                                            <p className="text-xs text-gray-500">{cert.uploadDate}</p>
+                                          </div>
+                                          <div className={`px-2 py-1 rounded text-xs font-medium ${
+                                            cert.status === 'approved' 
+                                              ? 'bg-green-100 text-green-800' 
+                                              : 'bg-yellow-100 text-yellow-800'
+                                          }`}>
+                                            {cert.status.charAt(0).toUpperCase() + cert.status.slice(1)}
+                                          </div>
+                                        </div>
+                                      ))}
+                                    {certificates.filter(cert => cert.studentAddress === student.address).length === 0 && (
+                                      <p className="text-sm text-gray-500 text-center py-2">No certificates found</p>
+                                    )}
+                                  </div>
+                                </div>
+                              </div>
+                              <DialogFooter>
+                                <Button 
+                                  variant="outline" 
+                                  size="sm"
+                                  onClick={() => {
+                                    setSelectedStudent(student);
+                                    setActiveTab('upload');
+                                  }}
+                                >
+                                  Upload Certificate
+                                </Button>
+                              </DialogFooter>
+                            </DialogContent>
+                          </Dialog>
+                        </CardFooter>
+                      </Card>
+                    ))}
+                  </div>
+                ) : (
+                  <div className="text-center py-12">
+                    <div className="w-16 h-16 mx-auto mb-4 rounded-full bg-gray-100 flex items-center justify-center">
+                      <Users className="w-8 h-8 text-gray-400" />
+                    </div>
+                    <h3 className="text-lg font-medium text-gray-900 mb-1">No Students Found</h3>
+                    <p className="text-gray-500 mb-4">No students are currently linked to your institution</p>
+                  </div>
+                )}
+              </div>
+            )}
+            
+            {activeTab === 'certificates' && (
+              <div className="bg-white rounded-lg shadow-sm p-6">
+                <div className="flex justify-between items-center mb-6">
+                  <h2 className="text-xl font-semibold">Certificates</h2>
+                  <Tabs value={certificatesTabValue} onValueChange={setCertificatesTabValue}>
+                    <TabsList>
+                      <TabsTrigger value="all">All</TabsTrigger>
+                      <TabsTrigger value="pending">Pending</TabsTrigger>
+                      <TabsTrigger value="approved">Approved</TabsTrigger>
+                    </TabsList>
+                  </Tabs>
+                </div>
+                
+                {loading ? (
+                  <div className="flex justify-center items-center py-12">
+                    <Loader2 className="w-8 h-8 text-certify-teal animate-spin" />
+                  </div>
+                ) : filteredCertificates.length > 0 ? (
+                  <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
+                    {filteredCertificates.map((cert) => (
+                      <Card key={cert.id} className="card-hover">
+                        <CardHeader className="pb-2">
+                          <CardTitle className="text-lg">{cert.name}</CardTitle>
+                          <CardDescription>Uploaded: {cert.uploadDate}</CardDescription>
+                        </CardHeader>
+                        <CardContent>
+                          <div className="flex items-center mb-2">
+                            <User className="w-4 h-4 text-certify-teal mr-2" />
+                            <span className="text-sm">{cert.studentName}</span>
+                          </div>
+                          <div className="flex items-center mb-2">
+                            <div className={`px-2 py-1 rounded text-xs font-medium ${
+                              cert.status === 'approved' 
+                                ? 'bg-green-100 text-green-800' 
+                                : 'bg-yellow-100 text-yellow-800'
+                            }`}>
+                              {cert.status.charAt(0).toUpperCase() + cert.status.slice(1)}
+                            </div>
+                          </div>
+                          <p className="text-xs text-gray-500 truncate">
+                            IPFS: {cert.ipfsHash}
+                          </p>
+                        </CardContent>
+                        <CardFooter className="pt-0 flex gap-2">
+                          {cert.status === 'pending' ? (
+                            <Button 
+                              className="flex-1"
+                              onClick={() => handleApproveCertificate(cert)}
+                              disabled={loading}
+                            >
+                              {loading ? (
+                                <>
+                                  <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                                  Processing...
+                                </>
+                              ) : (
+                                <>
+                                  <CheckSquare className="w-4 h-4 mr-2" />
+                                  Approve Certificate
+                                </>
+                              )}
+                            </Button>
+                          ) : (
+                            <>
+                              <Button 
+                                variant="outline" 
+                                className="flex-1"
+                                onClick={() => handleViewOnIPFS(cert)}
+                                disabled={viewLoading}
+                              >
+                                {viewLoading ? (
+                                  <Loader2 className="w-4 h-4 mr-2 animate-spin" />
+                                ) : (
+                                  <ExternalLink className="w-4 h-4 mr-2" />
+                                )}
+                                View
+                              </Button>
+                              <Button 
+                                variant="outline" 
+                                className="flex-1"
+                                onClick={() => handleDownloadCertificate(cert)}
+                                disabled={downloadLoading}
+                              >
+                                {downloadLoading ? (
+                                  <Loader2 className="w-4 h-4 mr-2 animate-spin" />
+                                ) : (
+                                  <Download className="w-4 h-4 mr-2" />
+                                )}
+                                Download
+                              </Button>
+                            </>
+                          )}
+                        </CardFooter>
+                      </Card>
+                    ))}
+                  </div>
+                ) : (
+                  <div className="text-center py-12">
+                    <div className="w-16 h-16 mx-auto mb-4 rounded-full bg-gray-100 flex items-center justify-center">
+                      <FileText className="w-8 h-8 text-gray-400" />
+                    </div>
+                    <h3 className="text-lg font-medium text-gray-900 mb-1">No Certificates Yet</h3>
+                    <p className="text-gray-500 mb-4">Start by uploading certificates for your students</p>
+                    <Button onClick={() => setActiveTab('upload')}>
+                      <Upload className="w-4 h-4 mr-2" />
+                      Upload Certificate
+                    </Button>
+                  </div>
+                )}
+              </div>
+            )}
+            
+            {activeTab === 'upload' && (
+              <div className="bg-white rounded-lg shadow-sm p-6">
+                <h2 className="text-xl font-semibold mb-4">Upload Certificate</h2>
+                <p className="text-gray-500 mb-6">
+                  Issue a new certificate to one of your students.
+                </p>
+                
+                <div className="space-y-6">
+                  <div className="space-y-2">
+                    <Label htmlFor="student">Select Student</Label>
+                    <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-3">
+                      {students.map((student) => (
+                        <Button
+                          key={student.id}
+                          type="button"
+                          variant={selectedStudent?.id === student.id ? "default" : "outline"}
+                          onClick={() => setSelectedStudent(student)}
+                          className={`justify-start text-left h-auto py-3 ${
+                            selectedStudent?.id === student.id ? "" : "border-dashed"
+                          }`}
+                        >
+                          <div className="w-8 h-8 rounded-full bg-certify-teal/10 flex items-center justify-center mr-2">
+                            <User className="w-4 h-4 text-certify-teal" />
+                          </div>
+                          <div className="truncate">
+                            <p className="text-sm font-medium">{student.name}</p>
+                            <p className="text-xs text-muted-foreground truncate">
+                              {student.address.substring(0, 6)}...{student.address.substring(student.address.length - 4)}
+                            </p>
+                          </div>
+                        </Button>
+                      ))}
+                    </div>
+                  </div>
+                  
+                  <div className="space-y-2">
+                    <Label htmlFor="certificateName">Certificate Name</Label>
+                    <Input
+                      id="certificateName"
+                      placeholder="Enter certificate name"
+                      value={certificateName}
+                      onChange={(e) => setCertificateName(e.target.value)}
+                    />
+                  </div>
+                  
+                  <FileUpload onFileSelected={handleFileSelected} />
+                  
+                  <Button 
+                    onClick={handleUploadCertificate}
+                    disabled={!selectedFile || !selectedStudent || !certificateName || loading}
+                    className="w-full"
+                  >
+                    {loading ? (
+                      <>
+                        <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                        Uploading...
+                      </>
+                    ) : (
+                      <>
+                        <Upload className="mr-2 h-4 w-4" />
+                        Upload Certificate
+                      </>
+                    )}
+                  </Button>
+                </div>
+              </div>
+            )}
+            
+            {activeTab === 'logs' && (
+              <div className="bg-white rounded-lg shadow-sm p-6">
+                <h2 className="text-xl font-semibold mb-6">Certificate Access Logs</h2>
+                
+                {loading ? (
+                  <div className="flex justify-center items-center py-12">
+                    <Loader2 className="w-8 h-8 text-certify-teal animate-spin" />
+                  </div>
+                ) : accessLogs.length > 0 ? (
+                  <div className="divide-y divide-gray-200">
+                    {accessLogs.map((log) => (
+                      <div key={log.id} className="py-4">
+                        <div className="flex items-start">
+                          <div className="w-10 h-10 rounded-full bg-gray-100 flex items-center justify-center mr-3">
+                            <Clock className="w-5 h-5 text-gray-500" />
+                          </div>
+                          <div className="flex-1">
+                            <div className="flex items-center justify-between">
+                              <p className="text-sm font-medium">
+                                Certificate accessed for {log.studentName}
+                              </p>
+                              <p className="text-xs text-gray-500">
+                                {new Date(log.timestamp).toLocaleString()}
+                              </p>
+                            </div>
+                            <p className="text-sm text-gray-600 mt-1">
+                              {log.certificateName}
+                            </p>
+                            <div className="flex items-center mt-2">
+                              <p className="text-xs text-gray-500">
+                                Viewer: {log.viewerAddress.substring(0, 6)}...{log.viewerAddress.substring(log.viewerAddress.length - 4)}
+                              </p>
+                            </div>
+                          </div>
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                ) : (
+                  <div className="text-center py-12">
+                    <div className="w-16 h-16 mx-auto mb-4 rounded-full bg-gray-100 flex items-center justify-center">
+                      <ClipboardList className="w-8 h-8 text-gray-400" />
+                    </div>
+                    <h3 className="text-lg font-medium text-gray-900 mb-1">No Access Logs</h3>
+                    <p className="text-gray-500">
+                      When students share their certificates, access logs will appear here
+                    </p>
+                  </div>
+                )}
+              </div>
+            )}
+            
+            {activeTab === 'requests' && (
+              <div className="bg-white rounded-lg shadow-sm p-6">
+                <h2 className="text-xl font-semibold mb-6">Institute Change Requests</h2>
+                
+                {loading ? (
+                  <div className="flex justify-center items-center py-12">
+                    <Loader2 className="w-8 h-8 text-certify-teal animate-spin" />
+                  </div>
+                ) : changeRequests.length > 0 ? (
+                  <div className="space-y-4">
+                    {changeRequests.map((request) => (
+                      <Card key={request.id}>
+                        <CardHeader className="pb-2">
+                          <div className="flex justify-between items-start">
+                            <CardTitle className="text-lg">Change Request</CardTitle>
+                            <div className="px-2 py-1 rounded bg-yellow-100 text-yellow-800 text-xs font-medium">
+                              Pending Approval
+                            </div>
+                          </div>
+                          <CardDescription>Requested: {request.requestDate}</CardDescription>
+                        </CardHeader>
+                        <CardContent>
+                          <div className="space-y-3">
+                            <div className="flex items-center">
+                              <User className="w-4 h-4 text-certify-teal mr-2" />
+                              <span className="text-sm font-medium">{request.studentName}</span>
+                            </div>
+                            
+                            <div className="bg-gray-50 p-3 rounded-md">
+                              <h4 className="text-xs font-medium mb-1">Student Address</h4>
+                              <p className="text-xs text-gray-500 break-all">
+                                {request.studentAddress}
+                              </p>
+                            </div>
+                            
+                            <div className="bg-gray-50 p-3 rounded-md">
+                              <h4 className="text-xs font-medium mb-1">New Institute Address</h4>
+                              <p className="text-xs text-gray-500 break-all">
+                                {request.newInstituteAddress}
+                              </p>
+                            </div>
+                          </div>
+                        </CardContent>
+                        <CardFooter className="flex justify-between">
+                          <Button variant="outline" size="sm">
+                            Decline
+                          </Button>
+                          <Button 
+                            size="sm"
+                            onClick={() => handleApproveChangeRequest(request)}
+                            disabled={loading}
+                          >
+                            {loading ? (
+                              <>
+                                <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                                Processing...
+                              </>
+                            ) : (
+                              <>Approve Request</>
+                            )}
+                          </Button>
+                        </CardFooter>
+                      </Card>
+                    ))}
+                  </div>
+                ) : (
+                  <div className="text-center py-12">
+                    <div className="w-16 h-16 mx-auto mb-4 rounded-full bg-gray-100 flex items-center justify-center">
+                      <AlertTriangle className="w-8 h-8 text-gray-400" />
+                    </div>
+                    <h3 className="text-lg font-medium text-gray-900 mb-1">No Pending Requests</h3>
+                    <p className="text-gray-500">
+                      When students request to change their institute, they will appear here
+                    </p>
+                  </div>
+                )}
+              </div>
+            )}
           </div>
         </div>
       </div>

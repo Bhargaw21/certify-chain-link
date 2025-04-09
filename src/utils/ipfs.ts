@@ -33,9 +33,39 @@ export const uploadToIPFS = async (file: File): Promise<string> => {
   }
 };
 
-// Mock function to get a file from IPFS
-// In a real app, this would fetch from IPFS gateway
-export const getFromIPFS = async (cid: string): Promise<string> => {
-  // Return a mock URL for demonstration
+// Function to get a file from IPFS and open it in a new tab
+export const viewIPFS = (cid: string): void => {
+  const ipfsUrl = getIPFSUrl(cid);
+  window.open(ipfsUrl, '_blank');
+};
+
+// Function to download a file from IPFS
+export const downloadFromIPFS = async (cid: string, filename: string = 'certificate.pdf'): Promise<void> => {
+  try {
+    const ipfsUrl = getIPFSUrl(cid);
+    
+    // Fetch the file from IPFS gateway
+    const response = await fetch(ipfsUrl);
+    const blob = await response.blob();
+    
+    // Create a download link
+    const url = window.URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = filename;
+    document.body.appendChild(a);
+    a.click();
+    
+    // Clean up
+    window.URL.revokeObjectURL(url);
+    document.body.removeChild(a);
+  } catch (error) {
+    console.error("Error downloading from IPFS:", error);
+    throw new Error("Failed to download file from IPFS");
+  }
+};
+
+// Get a file URL from IPFS gateway
+export const getIPFSUrl = (cid: string): string => {
   return `https://ipfs.io/ipfs/${cid}`;
 };
