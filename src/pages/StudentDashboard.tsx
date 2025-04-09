@@ -1,6 +1,7 @@
 
 import React, { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
+import { ethers } from 'ethers';
 import { useWeb3 } from '@/context/Web3Context';
 import { useUser } from '@/context/UserContext';
 import Layout from '@/components/Layout';
