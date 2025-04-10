@@ -1,4 +1,3 @@
-
 import React, { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useWeb3 } from '@/context/Web3Context';
@@ -105,24 +104,19 @@ const InstituteDashboard = () => {
   const [downloadLoading, setDownloadLoading] = useState(false);
   const [viewLoading, setViewLoading] = useState(false);
 
-  // Check if user is authenticated
   useEffect(() => {
     if (!isConnected || !user.isAuthenticated || user.role !== 'institute') {
       navigate('/institute-login');
     }
   }, [isConnected, user, navigate]);
 
-  // Fetch students and other data
   useEffect(() => {
     const fetchData = async () => {
       if (signer) {
         try {
           setLoading(true);
           
-          // Get linked students
           const studentsData = await getLinkedStudents(signer);
-          
-          // Map students data
           const mockStudents: Student[] = studentsData.map((student, index) => ({
             id: `student-${index + 1}`,
             address: student.address,
@@ -133,7 +127,6 @@ const InstituteDashboard = () => {
           
           setStudents(mockStudents);
           
-          // Mock certificates data
           const mockCertificates: Certificate[] = Array(8).fill(null).map((_, index) => ({
             id: `cert-${index + 1}`,
             studentName: mockStudents[index % mockStudents.length].name,
@@ -146,8 +139,7 @@ const InstituteDashboard = () => {
           
           setCertificates(mockCertificates);
           
-          // Get access logs
-          const logsData = await getAccessLogs(signer);
+          const logsData = await getAccessLogs(signer, 1);
           const mockAccessLogs: AccessLog[] = logsData.map((log, index) => ({
             id: `log-${index + 1}`,
             studentName: mockStudents[index % mockStudents.length].name,
@@ -158,7 +150,6 @@ const InstituteDashboard = () => {
           
           setAccessLogs(mockAccessLogs);
           
-          // Mock change requests
           const mockChangeRequests: ChangeRequest[] = Array(2).fill(null).map((_, index) => ({
             id: `request-${index + 1}`,
             studentName: mockStudents[index].name,
@@ -252,21 +243,18 @@ const InstituteDashboard = () => {
     try {
       setLoading(true);
       
-      // Upload to IPFS
       const ipfsHash = await uploadToIPFS(selectedFile);
       
-      // Upload certificate reference to contract
       const success = await uploadCertificate(signer, selectedStudent.address, ipfsHash);
       
       if (success) {
-        // Add certificate to list
         const newCertificate: Certificate = {
           id: `cert-${certificates.length + 1}`,
           studentName: selectedStudent.name,
           studentAddress: selectedStudent.address,
           name: certificateName,
           uploadDate: new Date().toLocaleDateString(),
-          status: 'approved', // Institutes directly upload approved certificates
+          status: 'approved',
           ipfsHash,
         };
         
@@ -301,14 +289,11 @@ const InstituteDashboard = () => {
     try {
       setLoading(true);
       
-      // Extract the certificate ID from the string format "cert-X"
       const certificateId = parseInt(cert.id.split('-')[1]);
       
-      // Call the contract function
       const success = await approveCertificate(signer, cert.studentAddress, certificateId);
       
       if (success) {
-        // Update certificate status
         setCertificates(certificates.map(c => 
           c.id === cert.id ? { ...c, status: 'approved' } : c
         ));
@@ -338,11 +323,9 @@ const InstituteDashboard = () => {
     try {
       setLoading(true);
       
-      // Call the contract function
       const success = await approveInstituteChange(signer, request.studentAddress);
       
       if (success) {
-        // Remove request from list
         setChangeRequests(changeRequests.filter(req => req.id !== request.id));
         
         toast({
@@ -373,7 +356,6 @@ const InstituteDashboard = () => {
     student.address.toLowerCase().includes(searchQuery.toLowerCase())
   );
 
-  // Filter certificates based on active certificate tab 
   const filteredCertificates = certificates.filter(cert => {
     if (certificatesTabValue === 'all') return true;
     if (certificatesTabValue === 'pending') return cert.status === 'pending';
@@ -819,7 +801,6 @@ const InstituteDashboard = () => {
     <Layout>
       <div className="container mx-auto py-8 px-4">
         <div className="flex flex-col md:flex-row items-start gap-8">
-          {/* Sidebar */}
           <div className="w-full md:w-64 bg-white rounded-lg shadow-sm p-4">
             <div className="mb-6">
               <h2 className="text-lg font-semibold text-gray-800">Institute Dashboard</h2>
@@ -912,7 +893,6 @@ const InstituteDashboard = () => {
             </div>
           </div>
           
-          {/* Main Content */}
           <div className="flex-1">
             {activeTab === 'students' && (
               <div className="bg-white rounded-lg shadow-sm p-6">
