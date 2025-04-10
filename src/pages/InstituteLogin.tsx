@@ -9,11 +9,12 @@ import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { toast } from "@/components/ui/use-toast";
-import { Wallet, Mail, Building, ArrowRight, Loader2 } from 'lucide-react';
+import { Wallet, Mail, Building, ArrowRight, Loader2, AlertCircle } from 'lucide-react';
+import { registerInstituteInDB } from '@/services/supabase';
 
 const InstituteLogin = () => {
   const navigate = useNavigate();
-  const { connectWallet, account, isConnected, signer } = useWeb3();
+  const { connectWallet, account, isConnected, signer, networkName } = useWeb3();
   const { login } = useUser();
   
   const [step, setStep] = useState<number>(1);
@@ -21,10 +22,12 @@ const InstituteLogin = () => {
   const [email, setEmail] = useState<string>('');
   const [otp, setOtp] = useState<string>('');
   const [loading, setLoading] = useState<boolean>(false);
+  const [error, setError] = useState<string | null>(null);
   
   // Check if already connected
   useEffect(() => {
     if (isConnected && account) {
+      console.log("Wallet already connected, moving to step 2");
       setStep(2);
     }
   }, [isConnected, account]);
@@ -32,12 +35,15 @@ const InstituteLogin = () => {
   const handleConnectWallet = async () => {
     try {
       setLoading(true);
+      setError(null);
+      console.log("Attempting to connect wallet from UI");
       await connectWallet();
       setLoading(false);
       setStep(2);
     } catch (error) {
       setLoading(false);
       console.error("Failed to connect wallet:", error);
+      setError("Could not connect to your wallet. Please make sure MetaMask is installed and unlocked.");
       toast({
         title: "Connection Failed",
         description: "Could not connect to your wallet. Please try again.",
@@ -47,7 +53,9 @@ const InstituteLogin = () => {
   };
   
   const handleVerifyEmail = () => {
+    setError(null);
     if (!email) {
+      setError("Please enter your institutional email address.");
       toast({
         title: "Email Required",
         description: "Please enter your institutional email address.",
@@ -57,6 +65,7 @@ const InstituteLogin = () => {
     }
     
     if (!name) {
+      setError("Please enter your institution name.");
       toast({
         title: "Institute Name Required",
         description: "Please enter your institution name.",
@@ -67,6 +76,7 @@ const InstituteLogin = () => {
     
     // Mock OTP verification
     setLoading(true);
+    console.log("Sending verification code to:", email);
     setTimeout(() => {
       // Generate a mock OTP
       const mockOtp = Math.floor(1000 + Math.random() * 9000).toString();
@@ -85,7 +95,9 @@ const InstituteLogin = () => {
   };
   
   const handleSubmit = async () => {
+    setError(null);
     if (!otp) {
+      setError("Please enter the verification code.");
       toast({
         title: "OTP Required",
         description: "Please enter the verification code.",
@@ -95,6 +107,7 @@ const InstituteLogin = () => {
     }
     
     if (!signer) {
+      setError("Wallet is not connected. Please reconnect and try again.");
       toast({
         title: "Connection Error",
         description: "Wallet is not connected. Please reconnect and try again.",
@@ -108,7 +121,20 @@ const InstituteLogin = () => {
     try {
       console.log("Starting institute registration with:", { name, email, account });
       
+      // First try to register in database directly
+      if (account) {
+        console.log("Registering institute in database first");
+        try {
+          const instituteId = await registerInstituteInDB(account, name, email);
+          console.log("Institute registered in database with ID:", instituteId);
+        } catch (dbError) {
+          console.error("Database registration error:", dbError);
+          // Continue with contract registration even if DB fails
+        }
+      }
+      
       // Register institute in the contract
+      console.log("Calling registerInstitute function...");
       const success = await registerInstitute(signer, name, email);
       
       if (success) {
@@ -125,10 +151,11 @@ const InstituteLogin = () => {
         // Navigate to institute dashboard
         navigate('/institute-dashboard');
       } else {
-        throw new Error("Registration failed");
+        throw new Error("Registration failed in contract call");
       }
-    } catch (error) {
+    } catch (error: any) {
       console.error("Error registering institute:", error);
+      setError(error.message || "Could not register your institution. Please try again.");
       toast({
         title: "Registration Failed",
         description: "Could not register your institution. Please try again.",
@@ -207,6 +234,23 @@ const InstituteLogin = () => {
                 </div>
               </div>
             </div>
+            
+            {error && (
+              <div className="mb-4 p-3 bg-red-50 border border-red-200 rounded-md">
+                <div className="flex items-center">
+                  <AlertCircle className="h-4 w-4 text-red-500 mr-2" />
+                  <p className="text-sm text-red-700">{error}</p>
+                </div>
+              </div>
+            )}
+            
+            {networkName && (
+              <div className="mb-4 p-3 bg-blue-50 border border-blue-200 rounded-md">
+                <p className="text-sm text-blue-700">
+                  Connected to network: <strong>{networkName}</strong>
+                </p>
+              </div>
+            )}
             
             {step === 1 && (
               <div className="space-y-6">

@@ -5,22 +5,28 @@ import { ethers } from 'ethers';
 // Student Services
 export const registerStudentInDB = async (address: string, name: string, email: string, instituteAddress: string) => {
   try {
+    console.log("Starting registerStudentInDB with params:", { address, name, email, instituteAddress });
+    
     // First, find the institute by its address
+    console.log("Finding institute with address:", instituteAddress);
     const { data: instituteData, error: instituteError } = await supabase
       .from('institutes')
       .select('id')
       .eq('address', instituteAddress)
       .single();
 
+    console.log("Institute lookup result:", { instituteData, instituteError });
+    
     if (instituteError && instituteError.code !== 'PGRST116') {
       console.error("Error finding institute:", instituteError);
-      throw new Error("Failed to find institute");
+      throw new Error(`Failed to find institute: ${instituteError.message}`);
     }
 
     let instituteId = instituteData?.id;
 
     // If institute doesn't exist, create it with a placeholder name/email
     if (!instituteId) {
+      console.log("Institute not found, creating one with address:", instituteAddress);
       const { data: newInstitute, error: createError } = await supabase
         .from('institutes')
         .insert({
@@ -31,28 +37,35 @@ export const registerStudentInDB = async (address: string, name: string, email: 
         .select()
         .single();
 
+      console.log("Institute creation result:", { newInstitute, createError });
+      
       if (createError) {
         console.error("Error creating institute:", createError);
-        throw new Error("Failed to create institute");
+        throw new Error(`Failed to create institute: ${createError.message}`);
       }
 
       instituteId = newInstitute?.id;
+      console.log("Created new institute with ID:", instituteId);
     }
 
     // Check if student already exists
+    console.log("Checking if student exists with address:", address);
     const { data: existingStudent, error: checkError } = await supabase
       .from('students')
       .select('id')
       .eq('address', address)
       .single();
 
+    console.log("Student check result:", { existingStudent, checkError });
+    
     if (checkError && checkError.code !== 'PGRST116') {
       console.error("Error checking if student exists:", checkError);
-      throw new Error("Failed to check student existence");
+      throw new Error(`Failed to check student existence: ${checkError.message}`);
     }
 
     if (existingStudent) {
       // Update existing student
+      console.log("Updating existing student with ID:", existingStudent.id);
       const { error: updateError } = await supabase
         .from('students')
         .update({
@@ -62,14 +75,18 @@ export const registerStudentInDB = async (address: string, name: string, email: 
         })
         .eq('address', address);
 
+      console.log("Student update result:", { updateError });
+      
       if (updateError) {
         console.error("Error updating student:", updateError);
-        throw new Error("Failed to update student");
+        throw new Error(`Failed to update student: ${updateError.message}`);
       }
 
+      console.log("Student updated successfully");
       return existingStudent.id;
     } else {
       // Create new student
+      console.log("Creating new student with params:", { address, name, email, instituteId });
       const { data: newStudent, error: createError } = await supabase
         .from('students')
         .insert({
@@ -81,11 +98,14 @@ export const registerStudentInDB = async (address: string, name: string, email: 
         .select()
         .single();
 
+      console.log("Student creation result:", { newStudent, createError });
+      
       if (createError) {
         console.error("Error creating student:", createError);
-        throw new Error("Failed to create student");
+        throw new Error(`Failed to create student: ${createError.message}`);
       }
 
+      console.log("Student created successfully with ID:", newStudent?.id);
       return newStudent?.id;
     }
   } catch (error) {
@@ -121,36 +141,42 @@ export const getStudentByAddress = async (address: string) => {
 // Institute Services
 export const registerInstituteInDB = async (address: string, name: string, email: string) => {
   try {
-    console.log("Registering institute in DB:", { address, name, email });
+    console.log("Starting registerInstituteInDB with params:", { address, name, email });
     
     // Check if institute already exists
+    console.log("Checking if institute exists with address:", address);
     const { data: existingInstitute, error: checkError } = await supabase
       .from('institutes')
       .select('id')
       .eq('address', address)
       .single();
 
+    console.log("Institute check result:", { existingInstitute, checkError });
+    
     if (checkError && checkError.code !== 'PGRST116') {
       console.error("Error checking if institute exists:", checkError);
-      throw new Error("Failed to check institute existence");
+      throw new Error(`Failed to check institute existence: ${checkError.message}`);
     }
 
     if (existingInstitute) {
-      console.log("Institute already exists, updating record");
+      console.log("Institute already exists, updating with ID:", existingInstitute.id);
       // Update existing institute
       const { error: updateError } = await supabase
         .from('institutes')
         .update({ name, email })
         .eq('address', address);
 
+      console.log("Institute update result:", { updateError });
+      
       if (updateError) {
         console.error("Error updating institute:", updateError);
-        throw new Error("Failed to update institute");
+        throw new Error(`Failed to update institute: ${updateError.message}`);
       }
 
+      console.log("Institute updated successfully");
       return existingInstitute.id;
     } else {
-      console.log("Creating new institute record");
+      console.log("Creating new institute with params:", { address, name, email });
       // Create new institute
       const { data: newInstitute, error: createError } = await supabase
         .from('institutes')
@@ -158,12 +184,14 @@ export const registerInstituteInDB = async (address: string, name: string, email
         .select()
         .single();
 
+      console.log("Institute creation result:", { newInstitute, createError });
+      
       if (createError) {
         console.error("Error creating institute:", createError);
-        throw new Error("Failed to create institute");
+        throw new Error(`Failed to create institute: ${createError.message}`);
       }
 
-      console.log("Institute created successfully:", newInstitute);
+      console.log("Institute created successfully with ID:", newInstitute.id);
       return newInstitute.id;
     }
   } catch (error) {
