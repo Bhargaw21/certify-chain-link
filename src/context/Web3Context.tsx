@@ -10,6 +10,7 @@ interface Web3ContextType {
   connectWallet: () => Promise<void>;
   disconnectWallet: () => void;
   networkName: string | null;
+  networkId: number | null;
 }
 
 const Web3Context = createContext<Web3ContextType>({
@@ -20,6 +21,7 @@ const Web3Context = createContext<Web3ContextType>({
   connectWallet: async () => {},
   disconnectWallet: () => {},
   networkName: null,
+  networkId: null,
 });
 
 export const useWeb3 = () => useContext(Web3Context);
@@ -30,6 +32,7 @@ export const Web3Provider: React.FC<{ children: React.ReactNode }> = ({ children
   const [provider, setProvider] = useState<ethers.providers.Web3Provider | null>(null);
   const [signer, setSigner] = useState<ethers.Signer | null>(null);
   const [networkName, setNetworkName] = useState<string | null>(null);
+  const [networkId, setNetworkId] = useState<number | null>(null);
 
   // Check if MetaMask is installed
   const checkIfWalletIsConnected = async () => {
@@ -58,7 +61,8 @@ export const Web3Provider: React.FC<{ children: React.ReactNode }> = ({ children
         // Get network information
         const network = await web3Provider.getNetwork();
         setNetworkName(network.name);
-        console.log("Connected to network:", network.name);
+        setNetworkId(network.chainId);
+        console.log("Connected to network:", network.name, "with chainId:", network.chainId);
       } else {
         console.log("No authorized account found");
       }
@@ -74,8 +78,7 @@ export const Web3Provider: React.FC<{ children: React.ReactNode }> = ({ children
       
       if (!ethereum) {
         console.error("MetaMask is not installed");
-        alert("Please install MetaMask to use this feature!");
-        return;
+        throw new Error("Please install MetaMask to use this feature!");
       }
       
       // Request account access
@@ -94,7 +97,8 @@ export const Web3Provider: React.FC<{ children: React.ReactNode }> = ({ children
       // Get network information
       const network = await web3Provider.getNetwork();
       setNetworkName(network.name);
-      console.log("Connected to network:", network.name);
+      setNetworkId(network.chainId);
+      console.log("Connected to network:", network.name, "with chainId:", network.chainId);
       
       // Modified this line to match the return type of Promise<void>
       // Instead of returning true, we just return
@@ -112,6 +116,7 @@ export const Web3Provider: React.FC<{ children: React.ReactNode }> = ({ children
     setProvider(null);
     setSigner(null);
     setNetworkName(null);
+    setNetworkId(null);
   };
 
   // Listen for changes to wallet accounts
@@ -131,7 +136,8 @@ export const Web3Provider: React.FC<{ children: React.ReactNode }> = ({ children
           // Update network info when accounts change
           web3Provider.getNetwork().then(network => {
             setNetworkName(network.name);
-            console.log("Network updated:", network.name);
+            setNetworkId(network.chainId);
+            console.log("Network updated:", network.name, "with chainId:", network.chainId);
           });
         }
       } else {
@@ -140,6 +146,7 @@ export const Web3Provider: React.FC<{ children: React.ReactNode }> = ({ children
         setProvider(null);
         setSigner(null);
         setNetworkName(null);
+        setNetworkId(null);
       }
     };
     
@@ -173,7 +180,8 @@ export const Web3Provider: React.FC<{ children: React.ReactNode }> = ({ children
       signer,
       connectWallet,
       disconnectWallet,
-      networkName
+      networkName,
+      networkId
     }}>
       {children}
     </Web3Context.Provider>

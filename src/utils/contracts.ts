@@ -1,3 +1,4 @@
+
 import { ethers } from 'ethers';
 import { supabase } from '@/integrations/supabase/client';
 import {
@@ -56,21 +57,77 @@ export const registerStudent = async (
     const userAddress = await signer.getAddress();
     console.log("Student wallet address:", userAddress);
     
-    // Check if institute exists in database
-    const instituteId = await getInstituteIdFromAddress(instituteAddress);
-    console.log("Institute ID lookup result:", instituteId);
+    // Verify wallet is connected with right parameters
+    if (!signer || !userAddress) {
+      console.error("Wallet connection issues - no valid signer or address");
+      throw new Error("Wallet connection issues. Please reconnect your wallet and try again.");
+    }
     
-    if (!instituteId) {
-      console.log("Institute not found, will create a placeholder");
+    // Check network connection
+    try {
+      const provider = signer.provider as ethers.providers.Web3Provider;
+      const network = await provider?.getNetwork();
+      console.log("Current network during registration:", network?.name, "with chainId:", network?.chainId);
+    } catch (netError) {
+      console.error("Network detection error:", netError);
+    }
+    
+    // Check if institute exists in database
+    let instituteId;
+    try {
+      instituteId = await getInstituteIdFromAddress(instituteAddress);
+      console.log("Institute ID lookup result:", instituteId);
+      
+      if (!instituteId) {
+        console.log("Institute not found, will create a placeholder");
+        try {
+          await registerInstituteInDB(
+            instituteAddress,
+            `Institute (${instituteAddress.substring(0, 6)}...)`,
+            `institute-${instituteAddress.substring(0, 6)}@placeholder.com`
+          );
+          console.log("Placeholder institute created successfully");
+          
+          // Get the newly created institute ID
+          instituteId = await getInstituteIdFromAddress(instituteAddress);
+          console.log("New institute ID:", instituteId);
+        } catch (createInstErr) {
+          console.error("Error creating placeholder institute:", createInstErr);
+          // Continue anyway as the registerStudentInDB will try to create a placeholder institute
+        }
+      }
+    } catch (instLookupErr) {
+      console.error("Error looking up institute:", instLookupErr);
+      // Continue anyway as the registerStudentInDB will handle this
     }
     
     // Register student in database with improved error handling
     try {
-      await registerStudentInDB(userAddress, name, email, instituteAddress);
-      console.log("Student registered in database successfully");
-    } catch (dbError) {
+      console.log("Starting to register student in database...");
+      const studentId = await registerStudentInDB(userAddress, name, email, instituteAddress);
+      console.log("Student registered in database successfully with ID:", studentId);
+      
+      if (!studentId) {
+        console.error("Student registration returned no ID");
+        throw new Error("Student registration failed: no student ID returned");
+      }
+    } catch (dbError: any) {
       console.error("Database registration error:", dbError);
-      throw new Error("Failed to register student in the database. Please try again.");
+      
+      // Enhanced error message based on the specific error
+      let errorMessage = "Failed to register student in the database. Please try again.";
+      
+      if (dbError.message && dbError.message.includes("violates row level security")) {
+        errorMessage = "Database permission error. Please contact support.";
+      } else if (dbError.message && dbError.message.includes("duplicate key")) {
+        errorMessage = "A student with this wallet address already exists.";
+      } else if (dbError.code === "23505") {
+        errorMessage = "A student with this wallet address already exists.";
+      } else if (dbError.code === "23503") {
+        errorMessage = "Referenced institute doesn't exist. Please check the institute address.";
+      }
+      
+      throw new Error(errorMessage);
     }
     
     console.log("Student registration process completed successfully");

@@ -10,11 +10,11 @@ import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { toast } from "@/components/ui/use-toast";
-import { Wallet, Mail, Building, ArrowRight, Loader2, AlertCircle } from 'lucide-react';
+import { Wallet, Mail, Building, ArrowRight, Loader2, AlertCircle, NetworkIcon, Info } from 'lucide-react';
 
 const StudentLogin = () => {
   const navigate = useNavigate();
-  const { connectWallet, account, isConnected, signer, networkName } = useWeb3();
+  const { connectWallet, account, isConnected, signer, networkName, networkId } = useWeb3();
   const { login } = useUser();
   
   const [step, setStep] = useState<number>(1);
@@ -154,9 +154,9 @@ const StudentLogin = () => {
       console.log("Starting student registration process...");
       console.log("Student data:", { name, email, instituteAddress });
       console.log("Wallet connected:", isConnected);
-      console.log("Current network:", networkName);
+      console.log("Current network:", networkName, "with chainId:", networkId);
       
-      // Register student in the contract
+      // Register student in the contract and database
       const success = await registerStudent(signer, name, email, instituteAddress);
       
       if (success) {
@@ -172,14 +172,21 @@ const StudentLogin = () => {
         // Navigate to student dashboard
         navigate('/student-dashboard');
       } else {
-        throw new Error("Registration failed for unknown reason");
+        throw new Error("Registration failed. Please check console for details.");
       }
     } catch (error: any) {
       console.error("Error registering student:", error);
-      setError(error.message || "Registration failed. Please try again later.");
+      
+      // Enhanced error reporting
+      let errorMessage = error.message || "Registration failed. Please try again later.";
+      if (errorMessage.includes("database")) {
+        errorMessage = "Failed to register student in the database. This might be due to a connection issue or invalid data. Please try again.";
+      }
+      
+      setError(errorMessage);
       toast({
         title: "Registration Failed",
-        description: error.message || "Could not register your account. Please try again.",
+        description: errorMessage,
         variant: "destructive",
       });
     } finally {
@@ -418,9 +425,12 @@ const StudentLogin = () => {
                     </p>
                   </div>
                   {networkName && (
-                    <p className="text-xs text-gray-500 pl-4">
-                      Network: {networkName}
-                    </p>
+                    <div className="flex items-center pl-4">
+                      <Info className="w-3 h-3 text-gray-400 mr-1" />
+                      <p className="text-xs text-gray-500">
+                        Network: {networkName} {networkId ? `(Chain ID: ${networkId})` : ''}
+                      </p>
+                    </div>
                   )}
                 </div>
               </div>
