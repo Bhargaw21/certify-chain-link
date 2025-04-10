@@ -1,5 +1,5 @@
 
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useWeb3 } from '@/context/Web3Context';
 import { useUser } from '@/context/UserContext';
@@ -22,11 +22,21 @@ const InstituteLogin = () => {
   const [otp, setOtp] = useState<string>('');
   const [loading, setLoading] = useState<boolean>(false);
   
+  // Check if already connected
+  useEffect(() => {
+    if (isConnected && account) {
+      setStep(2);
+    }
+  }, [isConnected, account]);
+  
   const handleConnectWallet = async () => {
     try {
+      setLoading(true);
       await connectWallet();
+      setLoading(false);
       setStep(2);
     } catch (error) {
+      setLoading(false);
       console.error("Failed to connect wallet:", error);
       toast({
         title: "Connection Failed",
@@ -96,10 +106,14 @@ const InstituteLogin = () => {
     setLoading(true);
     
     try {
+      console.log("Starting institute registration with:", { name, email, account });
+      
       // Register institute in the contract
       const success = await registerInstitute(signer, name, email);
       
       if (success) {
+        console.log("Institute registration successful");
+        
         // Set user context
         login('institute', name, email);
         

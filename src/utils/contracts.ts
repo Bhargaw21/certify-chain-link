@@ -1,4 +1,3 @@
-
 import { ethers } from 'ethers';
 import { supabase } from '@/integrations/supabase/client';
 import {
@@ -64,14 +63,11 @@ export const registerStudent = async (
     console.log(`Registering student: ${name}, ${email}, to institute: ${instituteAddress}`);
     
     const userAddress = await signer.getAddress();
+    console.log("Student wallet address:", userAddress);
     
     // Save to database
     await registerStudentInDB(userAddress, name, email, instituteAddress);
-    
-    // In a real implementation, we would also call the smart contract
-    // const contract = getECertifyContract(signer);
-    // const tx = await contract.registerStudent(name, email, instituteAddress);
-    // await tx.wait();
+    console.log("Student registered in database successfully");
     
     // Simulate delay for demo purposes
     await new Promise(resolve => setTimeout(resolve, 1000));
@@ -92,14 +88,11 @@ export const registerInstitute = async (
     console.log(`Registering institute: ${name}, ${email}`);
     
     const instituteAddress = await signer.getAddress();
+    console.log("Institute wallet address:", instituteAddress);
     
     // Save to database
-    await registerInstituteInDB(instituteAddress, name, email);
-    
-    // In a real implementation, we would also call the smart contract
-    // const contract = getECertifyContract(signer);
-    // const tx = await contract.registerInstitute(name, email);
-    // await tx.wait();
+    const instituteId = await registerInstituteInDB(instituteAddress, name, email);
+    console.log("Institute registered in database successfully with ID:", instituteId);
     
     // Simulate delay for demo purposes
     await new Promise(resolve => setTimeout(resolve, 1000));
@@ -132,11 +125,6 @@ export const uploadCertificate = async (
     // Save to database
     await uploadCertificateToDb(studentId, instituteId, ipfsHash);
     
-    // In a real implementation, we would also call the smart contract
-    // const contract = getECertifyContract(signer);
-    // const tx = await contract.uploadCertificate(studentAddress, ipfsHash);
-    // await tx.wait();
-    
     // Simulate delay for demo purposes
     await new Promise(resolve => setTimeout(resolve, 1000));
     
@@ -157,11 +145,6 @@ export const approveCertificate = async (
     
     // Save to database
     await approveCertificateInDb(certificateId);
-    
-    // In a real implementation, we would also call the smart contract
-    // const contract = getECertifyContract(signer);
-    // const tx = await contract.approveCertificate(studentAddress, certificateId);
-    // await tx.wait();
     
     // Simulate delay for demo purposes
     await new Promise(resolve => setTimeout(resolve, 1000));
@@ -195,11 +178,6 @@ export const giveAccess = async (
     
     // Save to database
     await grantAccessInDb(certificateId, viewerAddress, studentId, durationInHours);
-    
-    // In a real implementation, we would also call the smart contract
-    // const contract = getECertifyContract(signer);
-    // const tx = await contract.giveAccess(viewerAddress, certificateId, durationInDays * 24 * 60 * 60);
-    // await tx.wait();
     
     // Simulate delay for demo purposes
     await new Promise(resolve => setTimeout(resolve, 1000));
@@ -253,11 +231,6 @@ export const requestInstituteChange = async (
       await requestInstituteChangeInDb(studentId, student.current_institute_id, newInstituteId);
     }
     
-    // In a real implementation, we would also call the smart contract
-    // const contract = getECertifyContract(signer);
-    // const tx = await contract.changeInstituteRequest(newInstituteAddress);
-    // await tx.wait();
-    
     // Simulate delay for demo purposes
     await new Promise(resolve => setTimeout(resolve, 1000));
     
@@ -286,11 +259,6 @@ export const approveInstituteChange = async (
     
     // Save to database
     await approveInstituteChangeInDb(requestId, studentId, instituteId);
-    
-    // In a real implementation, we would also call the smart contract
-    // const contract = getECertifyContract(signer);
-    // const tx = await contract.approveChangeInstituteRequest(studentAddress);
-    // await tx.wait();
     
     // Simulate delay for demo purposes
     await new Promise(resolve => setTimeout(resolve, 1000));

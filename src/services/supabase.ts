@@ -121,6 +121,8 @@ export const getStudentByAddress = async (address: string) => {
 // Institute Services
 export const registerInstituteInDB = async (address: string, name: string, email: string) => {
   try {
+    console.log("Registering institute in DB:", { address, name, email });
+    
     // Check if institute already exists
     const { data: existingInstitute, error: checkError } = await supabase
       .from('institutes')
@@ -134,6 +136,7 @@ export const registerInstituteInDB = async (address: string, name: string, email
     }
 
     if (existingInstitute) {
+      console.log("Institute already exists, updating record");
       // Update existing institute
       const { error: updateError } = await supabase
         .from('institutes')
@@ -147,6 +150,7 @@ export const registerInstituteInDB = async (address: string, name: string, email
 
       return existingInstitute.id;
     } else {
+      console.log("Creating new institute record");
       // Create new institute
       const { data: newInstitute, error: createError } = await supabase
         .from('institutes')
@@ -159,6 +163,7 @@ export const registerInstituteInDB = async (address: string, name: string, email
         throw new Error("Failed to create institute");
       }
 
+      console.log("Institute created successfully:", newInstitute);
       return newInstitute.id;
     }
   } catch (error) {
