@@ -3,10 +3,18 @@ import { useNavigate } from 'react-router-dom';
 import { ethers } from 'ethers';
 import { useWeb3 } from '@/context/Web3Context';
 import { useUser } from '@/context/UserContext';
+import { useRealTimeUpdates } from '@/hooks/useRealTimeUpdates';
 import Layout from '@/components/Layout';
 import FileUpload from '@/components/FileUpload';
-import { uploadToIPFS, viewIPFS, downloadFromIPFS, isValidCID } from '@/utils/ipfs';
-import { getStudentCertificates, uploadCertificate, giveAccess, requestInstituteChange } from '@/utils/contracts';
+import { uploadToIPFS, viewIPFS, downloadFromIPFS, isValidCID, getIPFSUrl } from '@/utils/ipfs';
+import { 
+  getStudentCertificates, 
+  uploadCertificate, 
+  giveAccess, 
+  requestInstituteChange,
+  getStudentIdFromAddress,
+  getInstituteIdFromAddress
+} from '@/utils/contracts';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
@@ -53,6 +61,7 @@ const StudentDashboard = () => {
   const navigate = useNavigate();
   const { isConnected, account, signer } = useWeb3();
   const { user } = useUser();
+  const { needsRefresh, resetRefreshFlag } = useRealTimeUpdates();
   const [activeTab, setActiveTab] = useState('certificates');
   const [certificates, setCertificates] = useState<Certificate[]>([]);
   const [loading, setLoading] = useState(true);
@@ -67,15 +76,29 @@ const StudentDashboard = () => {
   const [viewLoading, setViewLoading] = useState(false);
   const [changeInstituteLoading, setChangeInstituteLoading] = useState(false);
   const [grantAccessLoading, setGrantAccessLoading] = useState(false);
+  const [studentId, setStudentId] = useState<string | null>(null);
 
-  // Check if user is authenticated
   useEffect(() => {
     if (!isConnected || !user.isAuthenticated || user.role !== 'student') {
       navigate('/student-login');
     }
   }, [isConnected, user, navigate]);
 
-  // Fetch certificates
+  useEffect(() => {
+    const fetchStudentId = async () => {
+      if (account && signer) {
+        try {
+          const id = await getStudentIdFromAddress(account);
+          setStudentId(id || null);
+        } catch (error) {
+          console.error("Error fetching student ID:", error);
+        }
+      }
+    };
+
+    fetchStudentId();
+  }, [account, signer]);
+
   useEffect(() => {
     const fetchCertificates = async () => {
       if (signer && account) {
@@ -83,10 +106,9 @@ const StudentDashboard = () => {
           setLoading(true);
           const certificateData = await getStudentCertificates(signer, account);
           
-          // Map the returned data to match our Certificate interface
           const formattedCertificates: Certificate[] = certificateData.map((cert) => ({
             id: cert.id,
-            name: `Certificate ${cert.id}`,
+            name: `Certificate ${cert.id.substring(0, 6)}...`,
             issueDate: new Date(cert.timestamp).toLocaleDateString(),
             status: cert.approved ? 'approved' : 'pending',
             ipfsHash: cert.ipfsHash,
@@ -107,7 +129,12 @@ const StudentDashboard = () => {
     };
 
     fetchCertificates();
-  }, [signer, account]);
+
+    if (needsRefresh) {
+      fetchCertificates();
+      resetRefreshFlag();
+    }
+  }, [signer, account, needsRefresh]);
 
   const handleFileSelected = (file: File) => {
     setSelectedFile(file);
@@ -119,20 +146,16 @@ const StudentDashboard = () => {
     try {
       setUploadLoading(true);
       
-      // Upload to IPFS
       const ipfsHash = await uploadToIPFS(selectedFile);
       
-      // Upload certificate reference to contract
       const success = await uploadCertificate(signer, account, ipfsHash);
       
       if (success) {
-        // Refresh certificates list
         const certificateData = await getStudentCertificates(signer, account);
         
-        // Map the returned data to match our Certificate interface
         const formattedCertificates: Certificate[] = certificateData.map((cert) => ({
           id: cert.id,
-          name: `Certificate ${cert.id}`,
+          name: `Certificate ${cert.id.substring(0, 6)}...`,
           issueDate: new Date(cert.timestamp).toLocaleDateString(),
           status: cert.approved ? 'approved' : 'pending',
           ipfsHash: cert.ipfsHash,
@@ -236,12 +259,16 @@ const StudentDashboard = () => {
     try {
       setGrantAccessLoading(true);
       
-      // Call the contract function
+      const duration = parseInt(accessDuration, 10);
+      if (isNaN(duration)) {
+        throw new Error("Invalid duration");
+      }
+      
       const success = await giveAccess(
         signer, 
         accessAddress, 
         selectedCertificateForAccess.id, 
-        parseInt(accessDuration)
+        duration / 24
       );
       
       if (success) {
@@ -283,7 +310,6 @@ const StudentDashboard = () => {
     try {
       setChangeInstituteLoading(true);
       
-      // Call the contract function
       const success = await requestInstituteChange(signer, newInstituteAddress);
       
       if (success) {
@@ -631,7 +657,6 @@ const StudentDashboard = () => {
     <Layout>
       <div className="container mx-auto py-8 px-4">
         <div className="flex flex-col md:flex-row items-start gap-8">
-          {/* Sidebar */}
           <div className="w-full md:w-64 bg-white rounded-lg shadow-sm p-4">
             <div className="mb-6">
               <h2 className="text-lg font-semibold text-gray-800">Student Dashboard</h2>
@@ -707,7 +732,6 @@ const StudentDashboard = () => {
             </div>
           </div>
           
-          {/* Main Content */}
           <div className="flex-1">
             {renderContent()}
           </div>

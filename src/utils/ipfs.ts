@@ -1,35 +1,78 @@
 
-// Utility functions for IPFS operations
+import { supabase } from '@/integrations/supabase/client';
 
-// Convert a file to a buffer that can be uploaded to IPFS
-export const fileToBuffer = (file: File): Promise<ArrayBuffer> => {
+// Convert a file to a base64 string that can be sent to the edge function
+export const fileToBase64 = (file: File): Promise<string> => {
   return new Promise((resolve, reject) => {
     const reader = new FileReader();
     reader.onloadend = () => {
-      resolve(reader.result as ArrayBuffer);
+      const base64String = reader.result as string;
+      // Remove the data URL prefix
+      const base64Content = base64String.split(',')[1];
+      resolve(base64Content);
     };
     reader.onerror = reject;
-    reader.readAsArrayBuffer(file);
+    reader.readAsDataURL(file);
   });
 };
 
-// Function to upload a file to IPFS
+// Function to upload a file to IPFS via Supabase edge function
 export const uploadToIPFS = async (file: File): Promise<string> => {
   try {
-    // Simulate upload delay
-    await new Promise(resolve => setTimeout(resolve, 1500));
+    console.log(`Preparing to upload file "${file.name}" to IPFS...`);
     
-    // Generate a mock IPFS hash (CID)
-    const mockCID = 'Qm' + Array(44).fill(0).map(() => 
-      Math.floor(Math.random() * 16).toString(16)
-    ).join('');
+    // Convert file to base64
+    const base64File = await fileToBase64(file);
     
-    console.log(`File "${file.name}" uploaded to IPFS with hash: ${mockCID}`);
-    return mockCID;
+    // Call the Supabase Edge Function
+    const { data, error } = await supabase.functions.invoke('ipfs-operations', {
+      body: {
+        action: 'upload',
+        file: base64File,
+        fileName: file.name,
+        fileType: file.type
+      }
+    });
+    
+    if (error) {
+      console.error("Error calling IPFS upload function:", error);
+      throw new Error("Failed to upload file to IPFS");
+    }
+    
+    console.log(`File "${file.name}" uploaded to IPFS with hash: ${data.ipfsHash}`);
+    return data.ipfsHash;
   } catch (error) {
     console.error("Error uploading to IPFS:", error);
     throw new Error("Failed to upload file to IPFS");
   }
+};
+
+// Function to verify if a CID is valid via Supabase edge function
+export const isValidCID = async (cid: string): Promise<boolean> => {
+  try {
+    // Call the Supabase Edge Function
+    const { data, error } = await supabase.functions.invoke('ipfs-operations', {
+      body: {
+        action: 'verify',
+        ipfsHash: cid
+      }
+    });
+    
+    if (error) {
+      console.error("Error verifying CID:", error);
+      return false;
+    }
+    
+    return data.isValid;
+  } catch (error) {
+    console.error("Error verifying CID:", error);
+    return false;
+  }
+};
+
+// Function to get a file URL from IPFS gateway
+export const getIPFSUrl = (cid: string): string => {
+  return `https://ipfs.io/ipfs/${cid}`;
 };
 
 // Function to get a file from IPFS and open it in a new tab
@@ -67,15 +110,4 @@ export const downloadFromIPFS = async (cid: string, filename: string = 'certific
     console.error("Error downloading from IPFS:", error);
     throw new Error("Failed to download file from IPFS");
   }
-};
-
-// Get a file URL from IPFS gateway
-export const getIPFSUrl = (cid: string): string => {
-  return `https://ipfs.io/ipfs/${cid}`;
-};
-
-// Verify if a CID is valid
-export const isValidCID = (cid: string): boolean => {
-  // Simple validation - check if it starts with Qm and has the right length
-  return cid.startsWith('Qm') && cid.length === 46;
 };

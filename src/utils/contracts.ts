@@ -1,5 +1,21 @@
 
 import { ethers } from 'ethers';
+import {
+  registerStudentInDB,
+  registerInstituteInDB,
+  uploadCertificateToDb,
+  approveCertificateInDb,
+  grantAccessInDb,
+  requestInstituteChangeInDb,
+  approveInstituteChangeInDb,
+  getCertificatesForStudent,
+  getStudentsForInstitute,
+  getAccessLogsForCertificate,
+  getPendingInstituteChangeRequests,
+  getPendingCertificatesForInstitute,
+  getStudentIdFromAddress,
+  getInstituteIdFromAddress
+} from '@/services/supabase';
 
 // ABI (Application Binary Interface) for our ECertify smart contract
 // This ABI matches the contract we've created in ECertify.sol
@@ -43,7 +59,12 @@ export const registerStudent = async (
   try {
     console.log(`Registering student: ${name}, ${email}, to institute: ${instituteAddress}`);
     
-    // In a real implementation, we would call the smart contract
+    const userAddress = await signer.getAddress();
+    
+    // Save to database
+    await registerStudentInDB(userAddress, name, email, instituteAddress);
+    
+    // In a real implementation, we would also call the smart contract
     // const contract = getECertifyContract(signer);
     // const tx = await contract.registerStudent(name, email, instituteAddress);
     // await tx.wait();
@@ -66,6 +87,16 @@ export const registerInstitute = async (
   try {
     console.log(`Registering institute: ${name}, ${email}`);
     
+    const instituteAddress = await signer.getAddress();
+    
+    // Save to database
+    await registerInstituteInDB(instituteAddress, name, email);
+    
+    // In a real implementation, we would also call the smart contract
+    // const contract = getECertifyContract(signer);
+    // const tx = await contract.registerInstitute(name, email);
+    // await tx.wait();
+    
     // Simulate delay for demo purposes
     await new Promise(resolve => setTimeout(resolve, 1000));
     return true;
@@ -84,11 +115,26 @@ export const uploadCertificate = async (
   try {
     console.log(`Uploading certificate for student ${studentAddress} with IPFS hash: ${ipfsHash}`);
     
+    const instituteAddress = await signer.getAddress();
+    
+    // Get IDs for database
+    const studentId = await getStudentIdFromAddress(studentAddress);
+    const instituteId = await getInstituteIdFromAddress(instituteAddress);
+    
+    if (!studentId || !instituteId) {
+      throw new Error("Student or institute not found");
+    }
+    
+    // Save to database
+    await uploadCertificateToDb(studentId, instituteId, ipfsHash);
+    
+    // In a real implementation, we would also call the smart contract
+    // const contract = getECertifyContract(signer);
+    // const tx = await contract.uploadCertificate(studentAddress, ipfsHash);
+    // await tx.wait();
+    
     // Simulate delay for demo purposes
     await new Promise(resolve => setTimeout(resolve, 1000));
-    
-    // Add to mock storage for demo purposes
-    storeMockCertificate(studentAddress, ipfsHash);
     
     return true;
   } catch (error) {
@@ -100,17 +146,21 @@ export const uploadCertificate = async (
 // Approve a certificate for a student
 export const approveCertificate = async (
   signer: ethers.Signer,
-  studentAddress: string,
-  certificateId: number
+  certificateId: string
 ): Promise<boolean> => {
   try {
-    console.log(`Approving certificate ${certificateId} for student ${studentAddress}`);
+    console.log(`Approving certificate ${certificateId}`);
+    
+    // Save to database
+    await approveCertificateInDb(certificateId);
+    
+    // In a real implementation, we would also call the smart contract
+    // const contract = getECertifyContract(signer);
+    // const tx = await contract.approveCertificate(studentAddress, certificateId);
+    // await tx.wait();
     
     // Simulate delay for demo purposes
     await new Promise(resolve => setTimeout(resolve, 1000));
-    
-    // Update mock storage for demo purposes
-    approveMockCertificate(certificateId);
     
     return true;
   } catch (error) {
@@ -123,20 +173,32 @@ export const approveCertificate = async (
 export const giveAccess = async (
   signer: ethers.Signer,
   viewerAddress: string,
-  certificateId: number,
+  certificateId: string,
   durationInDays: number
 ): Promise<boolean> => {
   try {
-    // Convert days to seconds for the smart contract
-    const durationInSeconds = durationInDays * 24 * 60 * 60;
+    // Convert days to hours for the database
+    const durationInHours = durationInDays * 24;
     
     console.log(`Granting access to ${viewerAddress} for certificate ${certificateId} for ${durationInDays} days`);
     
+    const studentAddress = await signer.getAddress();
+    const studentId = await getStudentIdFromAddress(studentAddress);
+    
+    if (!studentId) {
+      throw new Error("Student not found");
+    }
+    
+    // Save to database
+    await grantAccessInDb(certificateId, viewerAddress, studentId, durationInHours);
+    
+    // In a real implementation, we would also call the smart contract
+    // const contract = getECertifyContract(signer);
+    // const tx = await contract.giveAccess(viewerAddress, certificateId, durationInDays * 24 * 60 * 60);
+    // await tx.wait();
+    
     // Simulate delay for demo purposes
     await new Promise(resolve => setTimeout(resolve, 1000));
-    
-    // Add to mock access logs for demo purposes
-    addMockAccessLog(certificateId, viewerAddress);
     
     return true;
   } catch (error) {
@@ -153,11 +215,47 @@ export const requestInstituteChange = async (
   try {
     console.log(`Requesting change to institute ${newInstituteAddress}`);
     
+    const studentAddress = await signer.getAddress();
+    const studentId = await getStudentIdFromAddress(studentAddress);
+    
+    if (!studentId) {
+      throw new Error("Student not found");
+    }
+    
+    // Get the student's current institute
+    const { data: student } = await getStudentByAddress(studentAddress);
+    if (!student || !student.current_institute_id) {
+      throw new Error("Student has no current institute");
+    }
+    
+    // Get the requested institute ID
+    const newInstituteId = await getInstituteIdFromAddress(newInstituteAddress);
+    if (!newInstituteId) {
+      // Create the institute with a placeholder
+      await registerInstituteInDB(
+        newInstituteAddress,
+        `Institute (${newInstituteAddress.substring(0, 6)}...)`,
+        `institute-${newInstituteAddress.substring(0, 6)}@placeholder.com`
+      );
+      const newId = await getInstituteIdFromAddress(newInstituteAddress);
+      if (!newId) {
+        throw new Error("Failed to create institute");
+      }
+      
+      // Save to database
+      await requestInstituteChangeInDb(studentId, student.current_institute_id, newId);
+    } else {
+      // Save to database
+      await requestInstituteChangeInDb(studentId, student.current_institute_id, newInstituteId);
+    }
+    
+    // In a real implementation, we would also call the smart contract
+    // const contract = getECertifyContract(signer);
+    // const tx = await contract.changeInstituteRequest(newInstituteAddress);
+    // await tx.wait();
+    
     // Simulate delay for demo purposes
     await new Promise(resolve => setTimeout(resolve, 1000));
-    
-    // Store institute change request for demo purposes
-    storeMockInstituteChangeRequest(await signer.getAddress(), newInstituteAddress);
     
     return true;
   } catch (error) {
@@ -169,16 +267,29 @@ export const requestInstituteChange = async (
 // Approve a change of institute request
 export const approveInstituteChange = async (
   signer: ethers.Signer,
-  studentAddress: string
+  requestId: string,
+  studentId: string
 ): Promise<boolean> => {
   try {
-    console.log(`Approving institute change request for student ${studentAddress}`);
+    console.log(`Approving institute change request for request ${requestId}`);
+    
+    const instituteAddress = await signer.getAddress();
+    const instituteId = await getInstituteIdFromAddress(instituteAddress);
+    
+    if (!instituteId) {
+      throw new Error("Institute not found");
+    }
+    
+    // Save to database
+    await approveInstituteChangeInDb(requestId, studentId, instituteId);
+    
+    // In a real implementation, we would also call the smart contract
+    // const contract = getECertifyContract(signer);
+    // const tx = await contract.approveChangeInstituteRequest(studentAddress);
+    // await tx.wait();
     
     // Simulate delay for demo purposes
     await new Promise(resolve => setTimeout(resolve, 1000));
-    
-    // Update mock data for demo purposes
-    approveMockInstituteChange(studentAddress);
     
     return true;
   } catch (error) {
@@ -191,15 +302,27 @@ export const approveInstituteChange = async (
 export const getStudentCertificates = async (
   signer: ethers.Signer,
   studentAddress: string
-): Promise<{ id: number, ipfsHash: string, approved: boolean, issuer: string, timestamp: number }[]> => {
+): Promise<{ id: string, ipfsHash: string, approved: boolean, issuer: string, timestamp: number }[]> => {
   try {
     console.log(`Getting certificates for student ${studentAddress}`);
     
-    // Simulate delay for demo purposes
-    await new Promise(resolve => setTimeout(resolve, 1000));
+    const studentId = await getStudentIdFromAddress(studentAddress);
     
-    // Return mock certificates from our in-memory storage
-    return getMockCertificatesForStudent(studentAddress);
+    if (!studentId) {
+      return [];
+    }
+    
+    // Get from database
+    const certificates = await getCertificatesForStudent(studentId);
+    
+    // Map to the expected format
+    return certificates.map(cert => ({
+      id: cert.id,
+      ipfsHash: cert.ipfs_hash,
+      approved: cert.is_approved,
+      issuer: cert.institute?.address || "",
+      timestamp: new Date(cert.timestamp).getTime()
+    }));
   } catch (error) {
     console.error("Error getting student certificates:", error);
     return [];
@@ -214,11 +337,20 @@ export const getLinkedStudents = async (
     const instituteAddress = await signer.getAddress();
     console.log(`Getting students linked to institute ${instituteAddress}`);
     
-    // Simulate delay for demo purposes
-    await new Promise(resolve => setTimeout(resolve, 1000));
+    const instituteId = await getInstituteIdFromAddress(instituteAddress);
     
-    // Return mock students from our in-memory storage
-    return getMockStudentsForInstitute(instituteAddress);
+    if (!instituteId) {
+      return [];
+    }
+    
+    // Get from database
+    const students = await getStudentsForInstitute(instituteId);
+    
+    // Return in the expected format
+    return students.map(student => ({
+      address: student.address,
+      name: student.name
+    }));
   } catch (error) {
     console.error("Error getting linked students:", error);
     return [];
@@ -228,16 +360,19 @@ export const getLinkedStudents = async (
 // Get access logs for a certificate
 export const getAccessLogs = async (
   signer: ethers.Signer,
-  certificateId: number
+  certificateId: string
 ): Promise<{ viewer: string; timestamp: number }[]> => {
   try {
     console.log(`Getting access logs for certificate ${certificateId}`);
     
-    // Simulate delay for demo purposes
-    await new Promise(resolve => setTimeout(resolve, 1000));
+    // Get from database
+    const logs = await getAccessLogsForCertificate(certificateId);
     
-    // Return mock access logs from our in-memory storage
-    return getMockAccessLogs(certificateId);
+    // Map to the expected format
+    return logs.map(log => ({
+      viewer: log.viewer_address,
+      timestamp: new Date(log.timestamp).getTime()
+    }));
   } catch (error) {
     console.error("Error getting access logs:", error);
     return [];
@@ -247,16 +382,27 @@ export const getAccessLogs = async (
 // Get pending institute change requests
 export const getPendingInstituteChangeRequests = async (
   signer: ethers.Signer
-): Promise<{ studentAddress: string; studentName: string }[]> => {
+): Promise<{ requestId: string; studentAddress: string; studentName: string; studentId: string }[]> => {
   try {
     const instituteAddress = await signer.getAddress();
     console.log(`Getting pending institute change requests for institute ${instituteAddress}`);
     
-    // Simulate delay for demo purposes
-    await new Promise(resolve => setTimeout(resolve, 1000));
+    const instituteId = await getInstituteIdFromAddress(instituteAddress);
     
-    // Return mock pending requests from our in-memory storage
-    return getMockPendingInstituteChangeRequests(instituteAddress);
+    if (!instituteId) {
+      return [];
+    }
+    
+    // Get from database
+    const requests = await getPendingInstituteChangeRequests(instituteId);
+    
+    // Return in the expected format
+    return requests.map(request => ({
+      requestId: request.id,
+      studentAddress: request.student.address,
+      studentName: request.student.name,
+      studentId: request.student_id
+    }));
   } catch (error) {
     console.error("Error getting pending institute change requests:", error);
     return [];
@@ -266,174 +412,46 @@ export const getPendingInstituteChangeRequests = async (
 // Get certificates pending approval for an institute
 export const getPendingCertificates = async (
   signer: ethers.Signer
-): Promise<{ id: number; studentAddress: string; studentName: string; ipfsHash: string; timestamp: number }[]> => {
+): Promise<{ id: string; studentAddress: string; studentName: string; ipfsHash: string; timestamp: number }[]> => {
   try {
     const instituteAddress = await signer.getAddress();
     console.log(`Getting pending certificates for institute ${instituteAddress}`);
     
-    // Simulate delay for demo purposes
-    await new Promise(resolve => setTimeout(resolve, 1000));
+    const instituteId = await getInstituteIdFromAddress(instituteAddress);
     
-    // Return mock pending certificates from our in-memory storage
-    return getMockPendingCertificates(instituteAddress);
+    if (!instituteId) {
+      return [];
+    }
+    
+    // Get from database
+    const certificates = await getPendingCertificatesForInstitute(instituteId);
+    
+    // Return in the expected format
+    return certificates.map(cert => ({
+      id: cert.id,
+      studentAddress: cert.student.address,
+      studentName: cert.student.name,
+      ipfsHash: cert.ipfs_hash,
+      timestamp: new Date(cert.timestamp).getTime()
+    }));
   } catch (error) {
     console.error("Error getting pending certificates:", error);
     return [];
   }
 };
 
-// Mock in-memory storage for demo purposes
-let mockCertificates: {
-  id: number;
-  ipfsHash: string;
-  approved: boolean;
-  issuer: string;
-  timestamp: number;
-  studentAddress: string;
-}[] = [
-  {
-    id: 1,
-    ipfsHash: "QmP8jTG1m9GSDJLCbeWhVSVveXsmgCzakzC6DYmi1EtZAZ",
-    approved: true,
-    issuer: "0x70997970C51812dc3A010C7d01b50e0d17dc79C8",
-    timestamp: Date.now() - 30 * 24 * 60 * 60 * 1000, // 30 days ago
-    studentAddress: "0x3C44CdDdB6a900fa2b585dd299e03d12FA4293BC",
-  },
-  {
-    id: 2,
-    ipfsHash: "QmYHmUANAMGJJLGRyPzjKJUNXvRdNzGV9GX9ZMHGwvXYqt",
-    approved: true,
-    issuer: "0x70997970C51812dc3A010C7d01b50e0d17dc79C8",
-    timestamp: Date.now() - 15 * 24 * 60 * 60 * 1000, // 15 days ago
-    studentAddress: "0x3C44CdDdB6a900fa2b585dd299e03d12FA4293BC",
-  },
-  {
-    id: 3,
-    ipfsHash: "QmZPWWmQWJuZE9QYEeASSWLCfnQnmVfU7rGzEzMQNqYxW4",
-    approved: false,
-    issuer: "0x70997970C51812dc3A010C7d01b50e0d17dc79C8",
-    timestamp: Date.now() - 5 * 24 * 60 * 60 * 1000, // 5 days ago
-    studentAddress: "0x3C44CdDdB6a900fa2b585dd299e03d12FA4293BC",
-  },
-];
+// Helper function needed by other functions
+export const getStudentByAddress = async (address: string) => {
+  const { data, error } = await supabase
+    .from('students')
+    .select('*')
+    .eq('address', address)
+    .single();
 
-let mockAccessLogs: {
-  certificateId: number;
-  viewer: string;
-  timestamp: number;
-}[] = [
-  { certificateId: 1, viewer: "0x15d34AAf54267DB7D7c367839AAf71A00a2C6A65", timestamp: Date.now() - 86400000 },
-  { certificateId: 1, viewer: "0x9965507D1a55bcC2695C58ba16FB37d819B0A4dc", timestamp: Date.now() - 43200000 },
-  { certificateId: 2, viewer: "0x976EA74026E726554dB657fA54763abd0C3a0aa9", timestamp: Date.now() - 21600000 },
-];
-
-let mockStudents: {
-  address: string;
-  name: string;
-  instituteAddress: string;
-  pendingInstituteAddress: string | null;
-}[] = [
-  { address: "0x3C44CdDdB6a900fa2b585dd299e03d12FA4293BC", name: "Alice Johnson", instituteAddress: "0x70997970C51812dc3A010C7d01b50e0d17dc79C8", pendingInstituteAddress: null },
-  { address: "0x90F79bf6EB2c4f870365E785982E1f101E93b906", name: "Bob Smith", instituteAddress: "0x70997970C51812dc3A010C7d01b50e0d17dc79C8", pendingInstituteAddress: null },
-  { address: "0x15d34AAf54267DB7D7c367839AAf71A00a2C6A65", name: "Charlie Brown", instituteAddress: "0x3C44CdDdB6a900fa2b585dd299e03d12FA4293BC", pendingInstituteAddress: "0x70997970C51812dc3A010C7d01b50e0d17dc79C8" },
-];
-
-// Helper functions for mock storage
-function storeMockCertificate(studentAddress: string, ipfsHash: string): void {
-  const newId = mockCertificates.length > 0 ? Math.max(...mockCertificates.map(c => c.id)) + 1 : 1;
-  mockCertificates.push({
-    id: newId,
-    ipfsHash,
-    approved: false,
-    issuer: "0x70997970C51812dc3A010C7d01b50e0d17dc79C8", // Default issuer for demo
-    timestamp: Date.now(),
-    studentAddress,
-  });
-}
-
-function approveMockCertificate(certificateId: number): void {
-  const certIndex = mockCertificates.findIndex(c => c.id === certificateId);
-  if (certIndex !== -1) {
-    mockCertificates[certIndex].approved = true;
+  if (error && error.code !== 'PGRST116') {
+    console.error("Error getting student by address:", error);
+    throw error;
   }
-}
 
-function addMockAccessLog(certificateId: number, viewerAddress: string): void {
-  mockAccessLogs.push({
-    certificateId,
-    viewer: viewerAddress,
-    timestamp: Date.now(),
-  });
-}
-
-function storeMockInstituteChangeRequest(studentAddress: string, newInstituteAddress: string): void {
-  const studentIndex = mockStudents.findIndex(s => s.address === studentAddress);
-  if (studentIndex !== -1) {
-    mockStudents[studentIndex].pendingInstituteAddress = newInstituteAddress;
-  }
-}
-
-function approveMockInstituteChange(studentAddress: string): void {
-  const studentIndex = mockStudents.findIndex(s => s.address === studentAddress);
-  if (studentIndex !== -1 && mockStudents[studentIndex].pendingInstituteAddress) {
-    mockStudents[studentIndex].instituteAddress = mockStudents[studentIndex].pendingInstituteAddress!;
-    mockStudents[studentIndex].pendingInstituteAddress = null;
-  }
-}
-
-function getMockCertificatesForStudent(studentAddress: string) {
-  return mockCertificates
-    .filter(cert => cert.studentAddress === studentAddress)
-    .map(({ id, ipfsHash, approved, issuer, timestamp }) => ({
-      id,
-      ipfsHash,
-      approved,
-      issuer,
-      timestamp,
-    }));
-}
-
-function getMockStudentsForInstitute(instituteAddress: string) {
-  return mockStudents
-    .filter(student => student.instituteAddress === instituteAddress)
-    .map(({ address, name }) => ({
-      address,
-      name,
-    }));
-}
-
-function getMockAccessLogs(certificateId: number) {
-  return mockAccessLogs
-    .filter(log => log.certificateId === certificateId)
-    .map(({ viewer, timestamp }) => ({
-      viewer,
-      timestamp,
-    }));
-}
-
-function getMockPendingInstituteChangeRequests(instituteAddress: string) {
-  return mockStudents
-    .filter(student => student.pendingInstituteAddress === instituteAddress)
-    .map(({ address, name }) => ({
-      studentAddress: address,
-      studentName: name,
-    }));
-}
-
-function getMockPendingCertificates(instituteAddress: string) {
-  const students = mockStudents.filter(s => s.instituteAddress === instituteAddress);
-  const studentAddresses = students.map(s => s.address);
-  
-  return mockCertificates
-    .filter(cert => studentAddresses.includes(cert.studentAddress) && !cert.approved)
-    .map(cert => {
-      const student = students.find(s => s.address === cert.studentAddress)!;
-      return {
-        id: cert.id,
-        studentAddress: cert.studentAddress,
-        studentName: student.name,
-        ipfsHash: cert.ipfsHash,
-        timestamp: cert.timestamp,
-      };
-    });
-}
+  return { data };
+};
