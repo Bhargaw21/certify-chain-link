@@ -1,5 +1,6 @@
 
 import { ethers } from 'ethers';
+import { supabase } from '@/integrations/supabase/client';
 import {
   registerStudentInDB,
   registerInstituteInDB,
@@ -11,7 +12,7 @@ import {
   getCertificatesForStudent,
   getStudentsForInstitute,
   getAccessLogsForCertificate,
-  getPendingInstituteChangeRequests,
+  getPendingInstituteChangeRequests as getDbPendingInstituteChangeRequests,
   getPendingCertificatesForInstitute,
   getStudentIdFromAddress,
   getInstituteIdFromAddress
@@ -48,6 +49,9 @@ const contractAddress = "0x8Bc75d6216051aBBB7C53Ec1C01E397A2bdE67a9";
 export const getECertifyContract = (signer: ethers.Signer) => {
   return new ethers.Contract(contractAddress, ECertifyContractABI, signer);
 };
+
+// Export the helper functions for use in other parts of the application
+export { getStudentIdFromAddress, getInstituteIdFromAddress };
 
 // Register a student with the smart contract
 export const registerStudent = async (
@@ -379,7 +383,7 @@ export const getAccessLogs = async (
   }
 };
 
-// Get pending institute change requests
+// Get pending institute change requests - renamed from the imported function
 export const getPendingInstituteChangeRequests = async (
   signer: ethers.Signer
 ): Promise<{ requestId: string; studentAddress: string; studentName: string; studentId: string }[]> => {
@@ -393,14 +397,14 @@ export const getPendingInstituteChangeRequests = async (
       return [];
     }
     
-    // Get from database
-    const requests = await getPendingInstituteChangeRequests(instituteId);
+    // Get from database using the renamed import
+    const requests = await getDbPendingInstituteChangeRequests(instituteId);
     
     // Return in the expected format
     return requests.map(request => ({
       requestId: request.id,
-      studentAddress: request.student.address,
-      studentName: request.student.name,
+      studentAddress: request.student?.address || "",
+      studentName: request.student?.name || "",
       studentId: request.student_id
     }));
   } catch (error) {
@@ -429,8 +433,8 @@ export const getPendingCertificates = async (
     // Return in the expected format
     return certificates.map(cert => ({
       id: cert.id,
-      studentAddress: cert.student.address,
-      studentName: cert.student.name,
+      studentAddress: cert.student?.address || "",
+      studentName: cert.student?.name || "",
       ipfsHash: cert.ipfs_hash,
       timestamp: new Date(cert.timestamp).getTime()
     }));

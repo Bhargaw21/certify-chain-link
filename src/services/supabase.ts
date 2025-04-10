@@ -1,5 +1,5 @@
-
 import { supabase } from '@/integrations/supabase/client';
+import type { Database } from '@/integrations/supabase/types';
 import { ethers } from 'ethers';
 
 // Student Services
@@ -36,7 +36,7 @@ export const registerStudentInDB = async (address: string, name: string, email: 
         throw new Error("Failed to create institute");
       }
 
-      instituteId = newInstitute.id;
+      instituteId = newInstitute?.id;
     }
 
     // Check if student already exists
@@ -86,7 +86,7 @@ export const registerStudentInDB = async (address: string, name: string, email: 
         throw new Error("Failed to create student");
       }
 
-      return newStudent.id;
+      return newStudent?.id;
     }
   } catch (error) {
     console.error("Error in registerStudentInDB:", error);

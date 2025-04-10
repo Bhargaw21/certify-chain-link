@@ -1,3 +1,4 @@
+
 import React, { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { ethers } from 'ethers';
@@ -13,7 +14,8 @@ import {
   giveAccess, 
   requestInstituteChange,
   getStudentIdFromAddress,
-  getInstituteIdFromAddress
+  getInstituteIdFromAddress,
+  getStudentByAddress
 } from '@/utils/contracts';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -49,8 +51,9 @@ import {
   Loader2,
 } from 'lucide-react';
 
+// Update interface to match what we get from contract functions
 interface Certificate {
-  id: number;
+  id: string;
   name: string;
   issueDate: string;
   status: 'pending' | 'approved';
@@ -268,7 +271,7 @@ const StudentDashboard = () => {
         signer, 
         accessAddress, 
         selectedCertificateForAccess.id, 
-        duration / 24
+        duration
       );
       
       if (success) {
