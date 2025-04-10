@@ -96,7 +96,9 @@ export const Web3Provider: React.FC<{ children: React.ReactNode }> = ({ children
       setNetworkName(network.name);
       console.log("Connected to network:", network.name);
       
-      return true;
+      // Modified this line to match the return type of Promise<void>
+      // Instead of returning true, we just return
+      return;
     } catch (error) {
       console.error("Error connecting to wallet:", error);
       throw error;

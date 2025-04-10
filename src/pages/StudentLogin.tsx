@@ -1,5 +1,5 @@
 
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { ethers } from 'ethers';
 import { useWeb3 } from '@/context/Web3Context';
@@ -10,11 +10,11 @@ import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { toast } from "@/components/ui/use-toast";
-import { Wallet, Mail, Building, ArrowRight, Loader2 } from 'lucide-react';
+import { Wallet, Mail, Building, ArrowRight, Loader2, AlertCircle } from 'lucide-react';
 
 const StudentLogin = () => {
   const navigate = useNavigate();
-  const { connectWallet, account, isConnected, signer } = useWeb3();
+  const { connectWallet, account, isConnected, signer, networkName } = useWeb3();
   const { login } = useUser();
   
   const [step, setStep] = useState<number>(1);
@@ -23,23 +23,39 @@ const StudentLogin = () => {
   const [otp, setOtp] = useState<string>('');
   const [instituteAddress, setInstituteAddress] = useState<string>('');
   const [loading, setLoading] = useState<boolean>(false);
+  const [error, setError] = useState<string | null>(null);
+  
+  useEffect(() => {
+    // Reset error state when changing steps
+    setError(null);
+  }, [step]);
   
   const handleConnectWallet = async () => {
     try {
+      setLoading(true);
+      setError(null);
+      
       await connectWallet();
+      console.log("Wallet connected successfully");
       setStep(2);
-    } catch (error) {
+    } catch (error: any) {
       console.error("Failed to connect wallet:", error);
+      setError("Could not connect to your wallet. Please ensure MetaMask is installed and unlocked.");
       toast({
         title: "Connection Failed",
-        description: "Could not connect to your wallet. Please try again.",
+        description: error.message || "Could not connect to your wallet. Please try again.",
         variant: "destructive",
       });
+    } finally {
+      setLoading(false);
     }
   };
   
   const handleVerifyEmail = () => {
+    setError(null);
+    
     if (!email) {
+      setError("Please enter your email address.");
       toast({
         title: "Email Required",
         description: "Please enter your email address.",
@@ -49,6 +65,7 @@ const StudentLogin = () => {
     }
     
     if (!name) {
+      setError("Please enter your name.");
       toast({
         title: "Name Required",
         description: "Please enter your name.",
@@ -78,7 +95,10 @@ const StudentLogin = () => {
   };
   
   const handleVerifyOtp = () => {
+    setError(null);
+    
     if (!otp) {
+      setError("Please enter the verification code.");
       toast({
         title: "OTP Required",
         description: "Please enter the verification code.",
@@ -95,7 +115,11 @@ const StudentLogin = () => {
   };
   
   const handleSubmit = async () => {
+    setError(null);
+    
+    // Validate institute address
     if (!instituteAddress) {
+      setError("Please enter the Ethereum address of your institute.");
       toast({
         title: "Institute Address Required",
         description: "Please enter the Ethereum address of your institute.",
@@ -105,6 +129,7 @@ const StudentLogin = () => {
     }
     
     if (!ethers.utils.isAddress(instituteAddress)) {
+      setError("Please enter a valid Ethereum address for your institute.");
       toast({
         title: "Invalid Address",
         description: "Please enter a valid Ethereum address.",
@@ -114,6 +139,7 @@ const StudentLogin = () => {
     }
     
     if (!signer) {
+      setError("Wallet is not connected. Please reconnect and try again.");
       toast({
         title: "Connection Error",
         description: "Wallet is not connected. Please reconnect and try again.",
@@ -125,10 +151,16 @@ const StudentLogin = () => {
     setLoading(true);
     
     try {
+      console.log("Starting student registration process...");
+      console.log("Student data:", { name, email, instituteAddress });
+      console.log("Wallet connected:", isConnected);
+      console.log("Current network:", networkName);
+      
       // Register student in the contract
       const success = await registerStudent(signer, name, email, instituteAddress);
       
       if (success) {
+        console.log("Registration successful, proceeding to login");
         // Set user context
         login('student', name, email, instituteAddress);
         
@@ -140,13 +172,14 @@ const StudentLogin = () => {
         // Navigate to student dashboard
         navigate('/student-dashboard');
       } else {
-        throw new Error("Registration failed");
+        throw new Error("Registration failed for unknown reason");
       }
-    } catch (error) {
+    } catch (error: any) {
       console.error("Error registering student:", error);
+      setError(error.message || "Registration failed. Please try again later.");
       toast({
         title: "Registration Failed",
-        description: "Could not register your account. Please try again.",
+        description: error.message || "Could not register your account. Please try again.",
         variant: "destructive",
       });
     } finally {
@@ -222,6 +255,15 @@ const StudentLogin = () => {
                 </div>
               </div>
             </div>
+            
+            {error && (
+              <div className="mb-4 p-3 bg-red-50 border border-red-200 rounded-md">
+                <div className="flex items-start">
+                  <AlertCircle className="w-5 h-5 text-red-500 mr-2 mt-0.5" />
+                  <p className="text-sm text-red-700">{error}</p>
+                </div>
+              </div>
+            )}
             
             {step === 1 && (
               <div className="space-y-6">
@@ -368,11 +410,18 @@ const StudentLogin = () => {
             
             {isConnected && account && (
               <div className="mt-6 pt-4 border-t border-gray-200">
-                <div className="flex items-center">
-                  <div className="w-2 h-2 rounded-full bg-green-500 mr-2"></div>
-                  <p className="text-xs text-gray-500">
-                    Connected: {account.substring(0, 6)}...{account.substring(account.length - 4)}
-                  </p>
+                <div className="flex flex-col space-y-1">
+                  <div className="flex items-center">
+                    <div className="w-2 h-2 rounded-full bg-green-500 mr-2"></div>
+                    <p className="text-xs text-gray-500">
+                      Connected: {account.substring(0, 6)}...{account.substring(account.length - 4)}
+                    </p>
+                  </div>
+                  {networkName && (
+                    <p className="text-xs text-gray-500 pl-4">
+                      Network: {networkName}
+                    </p>
+                  )}
                 </div>
               </div>
             )}

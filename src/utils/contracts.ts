@@ -47,17 +47,38 @@ export const registerStudent = async (
   try {
     console.log(`Registering student: ${name}, ${email}, to institute: ${instituteAddress}`);
     
+    // Validate institute address format
+    if (!ethers.utils.isAddress(instituteAddress)) {
+      console.error("Invalid institute address format:", instituteAddress);
+      throw new Error("Invalid institute address format. Please enter a valid Ethereum address.");
+    }
+    
     const userAddress = await signer.getAddress();
     console.log("Student wallet address:", userAddress);
     
-    await registerStudentInDB(userAddress, name, email, instituteAddress);
-    console.log("Student registered in database successfully");
+    // Check if institute exists in database
+    const instituteId = await getInstituteIdFromAddress(instituteAddress);
+    console.log("Institute ID lookup result:", instituteId);
     
-    await new Promise(resolve => setTimeout(resolve, 1000));
+    if (!instituteId) {
+      console.log("Institute not found, will create a placeholder");
+    }
+    
+    // Register student in database with improved error handling
+    try {
+      await registerStudentInDB(userAddress, name, email, instituteAddress);
+      console.log("Student registered in database successfully");
+    } catch (dbError) {
+      console.error("Database registration error:", dbError);
+      throw new Error("Failed to register student in the database. Please try again.");
+    }
+    
+    console.log("Student registration process completed successfully");
     return true;
-  } catch (error) {
+  } catch (error: any) {
     console.error("Error registering student:", error);
-    return false;
+    // Include the error message for better debugging
+    throw new Error(`Registration failed: ${error.message || "Unknown error"}`);
   }
 };
 
@@ -371,16 +392,23 @@ export const getPendingCertificates = async (
 };
 
 export const getStudentByAddress = async (address: string) => {
-  const { data, error } = await supabase
-    .from('students')
-    .select('*')
-    .eq('address', address)
-    .single();
+  try {
+    console.log("Looking up student with address:", address);
+    const { data, error } = await supabase
+      .from('students')
+      .select('*')
+      .eq('address', address)
+      .single();
 
-  if (error && error.code !== 'PGRST116') {
-    console.error("Error getting student by address:", error);
+    if (error && error.code !== 'PGRST116') {
+      console.error("Error getting student by address:", error);
+      throw error;
+    }
+
+    console.log("Student lookup result:", data);
+    return { data };
+  } catch (error) {
+    console.error("Error in getStudentByAddress:", error);
     throw error;
   }
-
-  return { data };
 };
