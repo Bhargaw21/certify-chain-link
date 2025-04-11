@@ -1,17 +1,20 @@
 
 import React, { useState, useEffect } from 'react';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
+import { Badge } from '@/components/ui/badge';
 import { toast } from '@/components/ui/use-toast';
 import { useWeb3 } from '@/context/Web3Context';
 import { getLinkedStudents } from '@/utils/contracts';
-import { Loader2, User, Mail, RefreshCw } from 'lucide-react';
+import { Loader2, User, Mail, RefreshCw, FileText, BookOpen } from 'lucide-react';
 import { Button } from '@/components/ui/button';
+import { useRealTimeUpdates } from '@/hooks/useRealTimeUpdates';
 
 const LinkedStudents: React.FC = () => {
   const { signer } = useWeb3();
   const [students, setStudents] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
   const [selectedStudent, setSelectedStudent] = useState<string | null>(null);
+  const { needsRefresh, resetRefreshFlag } = useRealTimeUpdates();
 
   const loadStudents = async () => {
     if (!signer) return;
@@ -29,6 +32,7 @@ const LinkedStudents: React.FC = () => {
       });
     } finally {
       setLoading(false);
+      resetRefreshFlag();
     }
   };
 
@@ -37,6 +41,13 @@ const LinkedStudents: React.FC = () => {
       loadStudents();
     }
   }, [signer]);
+
+  // Listen for real-time updates that might affect the student list
+  useEffect(() => {
+    if (needsRefresh) {
+      loadStudents();
+    }
+  }, [needsRefresh]);
 
   const handleToggleDetails = (address: string) => {
     if (selectedStudent === address) {
@@ -95,17 +106,31 @@ const LinkedStudents: React.FC = () => {
                     <p className="font-medium">{student.name || 'Unnamed Student'}</p>
                     <p className="text-sm text-gray-500 truncate">{student.address}</p>
                   </div>
+                  {student.certificateCount !== undefined && (
+                    <Badge variant="outline" className="ml-2">
+                      <FileText className="h-3 w-3 mr-1" /> {student.certificateCount} Certs
+                    </Badge>
+                  )}
                 </div>
                 
                 {selectedStudent === student.address && (
                   <div className="bg-gray-50 p-4 border-t">
                     <div className="text-sm">
-                      <div className="flex items-center mb-2">
+                      <div className="flex items-center mb-3">
                         <Mail className="h-4 w-4 text-gray-400 mr-2" />
                         <span className="text-gray-600">
                           {student.email || 'No email available'}
                         </span>
                       </div>
+                      
+                      {student.instituteJoinDate && (
+                        <div className="flex items-center mb-3">
+                          <BookOpen className="h-4 w-4 text-gray-400 mr-2" />
+                          <span className="text-gray-600">
+                            Joined: {new Date(student.instituteJoinDate).toLocaleDateString()}
+                          </span>
+                        </div>
+                      )}
                       
                       <div className="mt-2">
                         <p className="text-gray-600">
