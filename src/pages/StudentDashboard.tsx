@@ -1,4 +1,3 @@
-
 import React, { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { ethers } from 'ethers';
@@ -51,7 +50,6 @@ import {
   Loader2,
 } from 'lucide-react';
 
-// Update interface to match what we get from contract functions
 interface Certificate {
   id: string;
   name: string;
@@ -150,6 +148,7 @@ const StudentDashboard = () => {
       setUploadLoading(true);
       
       const ipfsHash = await uploadToIPFS(selectedFile);
+      console.log("File uploaded to IPFS with hash:", ipfsHash);
       
       const success = await uploadCertificate(signer, account, ipfsHash);
       
@@ -172,6 +171,7 @@ const StudentDashboard = () => {
         });
         
         setSelectedFile(null);
+        setActiveTab('certificates');
       } else {
         throw new Error("Upload failed");
       }

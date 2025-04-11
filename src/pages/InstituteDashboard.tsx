@@ -5,7 +5,7 @@ import Layout from '@/components/Layout';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent } from '@/components/ui/card';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
-import { AlertCircle, Check, Upload, Users, Clock, Bell } from 'lucide-react';
+import { AlertCircle, Check, Upload, Users, Clock, Bell, Copy } from 'lucide-react';
 import { useWeb3 } from '@/context/Web3Context';
 import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert';
 import CertificateUpload from '@/components/CertificateUpload';
@@ -13,6 +13,7 @@ import { useNotifications } from '@/hooks/useNotifications';
 import CertificateList from '@/components/CertificateList';
 import StudentList from '@/components/StudentList';
 import ChangeRequestList from '@/components/ChangeRequestList';
+import { toast } from '@/components/ui/use-toast';
 
 const InstituteDashboard = () => {
   const navigate = useNavigate();
@@ -52,6 +53,16 @@ const InstituteDashboard = () => {
     setActiveTab(value);
     // Clear notifications when switching tabs
     clearNotifications();
+  };
+  
+  const copyAddressToClipboard = () => {
+    if (account) {
+      navigator.clipboard.writeText(account);
+      toast({
+        title: "Address copied",
+        description: "Institute address copied to clipboard",
+      });
+    }
   };
 
   return (
@@ -97,49 +108,76 @@ const InstituteDashboard = () => {
             </CardContent>
           </Card>
         ) : (
-          <Tabs value={activeTab} onValueChange={handleTabChange} className="space-y-6">
-            <TabsList className="grid grid-cols-4 max-w-md mx-auto">
-              <TabsTrigger value="upload" className="flex items-center">
-                <Upload className="h-4 w-4 mr-2" />
-                Upload
-              </TabsTrigger>
-              <TabsTrigger value="pending" className="flex items-center">
-                <AlertCircle className="h-4 w-4 mr-2" />
-                Pending
-              </TabsTrigger>
-              <TabsTrigger value="students" className="flex items-center">
-                <Users className="h-4 w-4 mr-2" />
-                Students
-              </TabsTrigger>
-              <TabsTrigger value="requests" className="flex items-center">
-                <Clock className="h-4 w-4 mr-2" />
-                Requests
-              </TabsTrigger>
-            </TabsList>
-            
-            <TabsContent value="upload" className="space-y-6">
-              <div className="flex flex-col items-center">
-                <CertificateUpload onSuccess={handleCertificateUploaded} />
-              </div>
-            </TabsContent>
+          <>
+            {/* Institute Address Card */}
+            <Card className="mb-6">
+              <CardContent className="pt-6">
+                <div className="flex flex-col md:flex-row md:items-center justify-between">
+                  <div>
+                    <h2 className="text-lg font-semibold">Your Institute Address</h2>
+                    <p className="text-sm text-gray-500 mb-2">
+                      Share this address with students to connect to your institute
+                    </p>
+                    <div className="p-3 bg-gray-50 rounded-md flex items-center justify-between">
+                      <code className="text-sm md:text-base break-all">{account}</code>
+                      <Button 
+                        size="sm" 
+                        variant="ghost" 
+                        onClick={copyAddressToClipboard} 
+                        className="ml-2 flex-shrink-0"
+                      >
+                        <Copy className="h-4 w-4" />
+                      </Button>
+                    </div>
+                  </div>
+                </div>
+              </CardContent>
+            </Card>
+          
+            <Tabs value={activeTab} onValueChange={handleTabChange} className="space-y-6">
+              <TabsList className="grid grid-cols-4 max-w-md mx-auto">
+                <TabsTrigger value="upload" className="flex items-center">
+                  <Upload className="h-4 w-4 mr-2" />
+                  Upload
+                </TabsTrigger>
+                <TabsTrigger value="pending" className="flex items-center">
+                  <AlertCircle className="h-4 w-4 mr-2" />
+                  Pending
+                </TabsTrigger>
+                <TabsTrigger value="students" className="flex items-center">
+                  <Users className="h-4 w-4 mr-2" />
+                  Students
+                </TabsTrigger>
+                <TabsTrigger value="requests" className="flex items-center">
+                  <Clock className="h-4 w-4 mr-2" />
+                  Requests
+                </TabsTrigger>
+              </TabsList>
+              
+              <TabsContent value="upload" className="space-y-6">
+                <div className="flex flex-col items-center">
+                  <CertificateUpload onSuccess={handleCertificateUploaded} />
+                </div>
+              </TabsContent>
 
-            <TabsContent value="pending" className="space-y-6">
-              <CertificateList 
-                key={`pending-${refreshKey}`} 
-                mode="institute" 
-                showPending={true} 
-                onRefresh={handleRefresh} 
-              />
-            </TabsContent>
+              <TabsContent value="pending" className="space-y-6">
+                <CertificateList 
+                  key={`pending-${refreshKey}`} 
+                  mode="institute" 
+                  showPending={true} 
+                  onRefresh={handleRefresh} 
+                />
+              </TabsContent>
 
-            <TabsContent value="students" className="space-y-6">
-              <StudentList key={`students-${refreshKey}`} onRefresh={handleRefresh} />
-            </TabsContent>
-            
-            <TabsContent value="requests" className="space-y-6">
-              <ChangeRequestList key={`requests-${refreshKey}`} onRefresh={handleRefresh} />
-            </TabsContent>
-          </Tabs>
+              <TabsContent value="students" className="space-y-6">
+                <StudentList key={`students-${refreshKey}`} onRefresh={handleRefresh} />
+              </TabsContent>
+              
+              <TabsContent value="requests" className="space-y-6">
+                <ChangeRequestList key={`requests-${refreshKey}`} onRefresh={handleRefresh} />
+              </TabsContent>
+            </Tabs>
+          </>
         )}
       </div>
     </Layout>

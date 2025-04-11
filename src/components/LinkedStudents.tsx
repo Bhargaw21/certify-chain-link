@@ -10,7 +10,7 @@ import { Button } from '@/components/ui/button';
 import { useRealTimeUpdates } from '@/hooks/useRealTimeUpdates';
 
 const LinkedStudents: React.FC = () => {
-  const { signer } = useWeb3();
+  const { signer, account } = useWeb3();
   const [students, setStudents] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
   const [selectedStudent, setSelectedStudent] = useState<string | null>(null);

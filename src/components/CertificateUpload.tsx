@@ -9,6 +9,7 @@ import { uploadToIPFS } from '@/utils/ipfs';
 import { uploadCertificate } from '@/utils/contracts';
 import { useWeb3 } from '@/context/Web3Context';
 import { Loader2 } from 'lucide-react';
+import { useRealTimeUpdates } from '@/hooks/useRealTimeUpdates';
 
 interface CertificateUploadProps {
   onSuccess?: () => void;
@@ -18,7 +19,8 @@ const CertificateUpload: React.FC<CertificateUploadProps> = ({ onSuccess }) => {
   const [studentAddress, setStudentAddress] = useState('');
   const [selectedFile, setSelectedFile] = useState<File | null>(null);
   const [isUploading, setIsUploading] = useState(false);
-  const { signer } = useWeb3();
+  const { signer, account } = useWeb3();
+  const { triggerRefresh } = useRealTimeUpdates();
 
   const handleFileSelected = (file: File) => {
     setSelectedFile(file);
@@ -67,6 +69,9 @@ const CertificateUpload: React.FC<CertificateUploadProps> = ({ onSuccess }) => {
           title: "Certificate uploaded successfully",
           description: "The certificate has been uploaded and is pending approval",
         });
+        
+        // Trigger refresh to update other components
+        triggerRefresh();
         
         // Reset form
         setStudentAddress('');
