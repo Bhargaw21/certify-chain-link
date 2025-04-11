@@ -82,8 +82,14 @@ export function useRealTimeUpdates() {
     }
   }, [studentCertificateUpdates, clearUpdates]);
 
+  // Add a function to manually trigger refresh
+  const triggerRefresh = () => {
+    setNeedsRefresh(true);
+  };
+
   return {
     needsRefresh,
-    resetRefreshFlag: () => setNeedsRefresh(false)
+    resetRefreshFlag: () => setNeedsRefresh(false),
+    triggerRefresh
   };
 }
