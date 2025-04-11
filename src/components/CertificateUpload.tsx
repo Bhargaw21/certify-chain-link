@@ -20,7 +20,7 @@ const CertificateUpload: React.FC<CertificateUploadProps> = ({ onSuccess }) => {
   const [selectedFile, setSelectedFile] = useState<File | null>(null);
   const [isUploading, setIsUploading] = useState(false);
   const { signer, account } = useWeb3();
-  const { resetRefreshFlag } = useRealTimeUpdates();
+  const { resetRefreshFlag, triggerRefresh } = useRealTimeUpdates();
 
   const handleFileSelected = (file: File) => {
     setSelectedFile(file);
@@ -70,8 +70,10 @@ const CertificateUpload: React.FC<CertificateUploadProps> = ({ onSuccess }) => {
           description: "The certificate has been uploaded and is pending approval",
         });
         
-        // Instead of using triggerRefresh which doesn't exist, we simply
-        // let the parent component know about the success via the callback
+        // Trigger refresh for real-time updates
+        if (triggerRefresh) {
+          triggerRefresh();
+        }
         
         // Reset form
         setStudentAddress('');
