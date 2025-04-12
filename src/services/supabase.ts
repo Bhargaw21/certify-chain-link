@@ -252,19 +252,29 @@ export const uploadCertificateToDb = async (studentId: string, instituteId: stri
     console.log("Attempting to insert certificate with params:", { studentId, instituteId, ipfsHash });
     console.log("Using auth token:", session.session.access_token.substring(0, 10) + "...");
     
+    // Extract user ID from session for RLS check
+    const userId = session.session.user.id;
+    console.log("Authenticated user ID:", userId);
+    
+    // Inserting with explicit permissions check
     const { data, error } = await supabase
       .from('certificates')
       .insert({
         student_id: studentId,
         institute_id: instituteId,
         ipfs_hash: ipfsHash,
-        is_approved: false
+        is_approved: false,
+        created_by: userId  // Add creator ID for RLS
       })
       .select()
       .single();
 
     if (error) {
       console.error("Error uploading certificate:", error);
+      // Check for specific RLS errors
+      if (error.code === '42501') {
+        throw new Error("You don't have permission to upload certificates. Please check your authentication status.");
+      }
       throw error;
     }
 

@@ -37,11 +37,13 @@ export const uploadCertificate = async (
     if (!session?.session) {
       console.log("No active Supabase session, attempting to authenticate");
       
-      // In a real application, we would need a proper authentication mechanism
-      // For now, first try to sign in, and if that fails, sign up
+      // Use a valid email format for authentication
+      const validEmail = `wallet-${instituteAddress.toLowerCase().replace('0x', '')}@certify.example.com`;
+      
       try {
+        // First try to sign in
         const { error: signInError } = await supabase.auth.signInWithPassword({
-          email: `${instituteAddress.toLowerCase()}@example.com`,
+          email: validEmail,
           password: 'password123'
         });
         
@@ -50,7 +52,7 @@ export const uploadCertificate = async (
           
           // If sign in fails, try to sign up the user
           const { error: signUpError } = await supabase.auth.signUp({
-            email: `${instituteAddress.toLowerCase()}@example.com`,
+            email: validEmail,
             password: 'password123',
             options: {
               data: {
@@ -66,7 +68,7 @@ export const uploadCertificate = async (
           
           // Need to sign in after signing up
           const { error: postSignUpError } = await supabase.auth.signInWithPassword({
-            email: `${instituteAddress.toLowerCase()}@example.com`,
+            email: validEmail,
             password: 'password123'
           });
           

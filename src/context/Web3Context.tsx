@@ -130,9 +130,13 @@ export const Web3Provider: React.FC<{ children: React.ReactNode }> = ({ children
   // Sign in with Supabase using a custom token
   const signInWithSupabase = async (address: string) => {
     try {
+      // Create a valid email from wallet address by adding a domain
+      // This is just for authentication purposes
+      const validEmail = `wallet-${address.toLowerCase().replace('0x', '')}@certify.example.com`;
+      
       // Try signing in first
       const { data, error } = await supabase.auth.signInWithPassword({
-        email: `${address.toLowerCase()}@example.com`,
+        email: validEmail,
         password: 'password123' // This is just for development
       });
       
@@ -141,7 +145,7 @@ export const Web3Provider: React.FC<{ children: React.ReactNode }> = ({ children
         
         // Create a new user if sign in fails
         const { data: signUpData, error: signUpError } = await supabase.auth.signUp({
-          email: `${address.toLowerCase()}@example.com`,
+          email: validEmail,
           password: 'password123',
           options: {
             data: {
@@ -152,20 +156,23 @@ export const Web3Provider: React.FC<{ children: React.ReactNode }> = ({ children
         
         if (signUpError) {
           console.error("Error creating account:", signUpError);
-          throw signUpError;
+          // Continue without failing - user might still be able to use other features
+          console.log("Continuing without authentication...");
+          return;
         }
         
         console.log("Account created successfully:", signUpData);
         
         // Sign in after creating the account
         const { error: signInAfterSignUpError } = await supabase.auth.signInWithPassword({
-          email: `${address.toLowerCase()}@example.com`,
+          email: validEmail,
           password: 'password123'
         });
         
         if (signInAfterSignUpError) {
           console.error("Error signing in after signup:", signInAfterSignUpError);
-          throw signInAfterSignUpError;
+          // Continue without failing
+          return;
         }
         
         return;
@@ -174,6 +181,7 @@ export const Web3Provider: React.FC<{ children: React.ReactNode }> = ({ children
       console.log("Signed in with Supabase successfully:", data);
     } catch (error) {
       console.error("Error signing in with Supabase:", error);
+      // We'll continue even if auth fails - it shouldn't block the app
     }
   };
 
