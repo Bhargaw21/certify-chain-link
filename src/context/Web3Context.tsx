@@ -130,8 +130,7 @@ export const Web3Provider: React.FC<{ children: React.ReactNode }> = ({ children
   // Sign in with Supabase using a custom token
   const signInWithSupabase = async (address: string) => {
     try {
-      // Since we're not using actual blockchain authentication, we'll use magic link for development
-      // In a production environment, you would use a proper JWT or signature-based authentication
+      // Try signing in first
       const { data, error } = await supabase.auth.signInWithPassword({
         email: `${address.toLowerCase()}@example.com`,
         password: 'password123' // This is just for development
@@ -139,6 +138,7 @@ export const Web3Provider: React.FC<{ children: React.ReactNode }> = ({ children
       
       if (error) {
         console.log("User doesn't exist. Creating account...");
+        
         // Create a new user if sign in fails
         const { data: signUpData, error: signUpError } = await supabase.auth.signUp({
           email: `${address.toLowerCase()}@example.com`,
@@ -151,10 +151,23 @@ export const Web3Provider: React.FC<{ children: React.ReactNode }> = ({ children
         });
         
         if (signUpError) {
+          console.error("Error creating account:", signUpError);
           throw signUpError;
         }
         
         console.log("Account created successfully:", signUpData);
+        
+        // Sign in after creating the account
+        const { error: signInAfterSignUpError } = await supabase.auth.signInWithPassword({
+          email: `${address.toLowerCase()}@example.com`,
+          password: 'password123'
+        });
+        
+        if (signInAfterSignUpError) {
+          console.error("Error signing in after signup:", signInAfterSignUpError);
+          throw signInAfterSignUpError;
+        }
+        
         return;
       }
       

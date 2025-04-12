@@ -37,21 +37,58 @@ export const uploadCertificate = async (
     if (!session?.session) {
       console.log("No active Supabase session, attempting to authenticate");
       
-      // Get a temporary token from the backend (simplified for this example)
-      // In a production environment, you would want to implement a proper authentication flow
-      const { data: authData, error: authError } = await supabase.auth.signInWithPassword({
-        email: `${instituteAddress.toLowerCase()}@example.com`,
-        password: 'password123'
-      });
-      
-      if (authError) {
-        console.error("Authentication error:", authError);
+      // In a real application, we would need a proper authentication mechanism
+      // For now, first try to sign in, and if that fails, sign up
+      try {
+        const { error: signInError } = await supabase.auth.signInWithPassword({
+          email: `${instituteAddress.toLowerCase()}@example.com`,
+          password: 'password123'
+        });
+        
+        if (signInError) {
+          console.log("Sign in failed, attempting to sign up:", signInError.message);
+          
+          // If sign in fails, try to sign up the user
+          const { error: signUpError } = await supabase.auth.signUp({
+            email: `${instituteAddress.toLowerCase()}@example.com`,
+            password: 'password123',
+            options: {
+              data: {
+                wallet_address: instituteAddress.toLowerCase()
+              }
+            }
+          });
+          
+          if (signUpError) {
+            console.error("Sign up error:", signUpError);
+            throw new Error(`Authentication failed: ${signUpError.message}`);
+          }
+          
+          // Need to sign in after signing up
+          const { error: postSignUpError } = await supabase.auth.signInWithPassword({
+            email: `${instituteAddress.toLowerCase()}@example.com`,
+            password: 'password123'
+          });
+          
+          if (postSignUpError) {
+            console.error("Post sign up authentication error:", postSignUpError);
+            throw new Error(`Authentication failed after signup: ${postSignUpError.message}`);
+          }
+        }
+        
+        console.log("Authentication successful");
+      } catch (authError: any) {
+        console.error("Authentication process error:", authError);
         throw new Error(`Authentication failed: ${authError.message}`);
       }
-      
-      console.log("Authentication successful:", authData);
     } else {
       console.log("Found existing Supabase session");
+    }
+    
+    // Verify we have a session before proceeding
+    const { data: verifySession } = await supabase.auth.getSession();
+    if (!verifySession?.session) {
+      throw new Error("Failed to establish authentication session");
     }
     
     // Upload to database

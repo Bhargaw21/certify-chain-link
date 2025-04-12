@@ -250,6 +250,7 @@ export const uploadCertificateToDb = async (studentId: string, instituteId: stri
     }
     
     console.log("Attempting to insert certificate with params:", { studentId, instituteId, ipfsHash });
+    console.log("Using auth token:", session.session.access_token.substring(0, 10) + "...");
     
     const { data, error } = await supabase
       .from('certificates')
