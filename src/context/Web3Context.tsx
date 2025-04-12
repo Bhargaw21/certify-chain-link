@@ -1,6 +1,7 @@
 
 import React, { createContext, useContext, useState, useEffect } from 'react';
 import { ethers } from 'ethers';
+import { supabase } from '@/integrations/supabase/client';
 
 interface Web3ContextType {
   account: string | null;
@@ -63,6 +64,9 @@ export const Web3Provider: React.FC<{ children: React.ReactNode }> = ({ children
         setNetworkName(network.name);
         setNetworkId(network.chainId);
         console.log("Connected to network:", network.name, "with chainId:", network.chainId);
+
+        // Sign in with Supabase using custom JWT
+        await signInWithSupabase(currentAccount);
       } else {
         console.log("No authorized account found");
       }
@@ -100,8 +104,9 @@ export const Web3Provider: React.FC<{ children: React.ReactNode }> = ({ children
       setNetworkId(network.chainId);
       console.log("Connected to network:", network.name, "with chainId:", network.chainId);
       
-      // Modified this line to match the return type of Promise<void>
-      // Instead of returning true, we just return
+      // Sign in with Supabase
+      await signInWithSupabase(accounts[0]);
+      
       return;
     } catch (error) {
       console.error("Error connecting to wallet:", error);
@@ -117,11 +122,51 @@ export const Web3Provider: React.FC<{ children: React.ReactNode }> = ({ children
     setSigner(null);
     setNetworkName(null);
     setNetworkId(null);
+    
+    // Sign out from Supabase
+    supabase.auth.signOut();
+  };
+  
+  // Sign in with Supabase using a custom token
+  const signInWithSupabase = async (address: string) => {
+    try {
+      // Since we're not using actual blockchain authentication, we'll use magic link for development
+      // In a production environment, you would use a proper JWT or signature-based authentication
+      const { data, error } = await supabase.auth.signInWithPassword({
+        email: `${address.toLowerCase()}@example.com`,
+        password: 'password123' // This is just for development
+      });
+      
+      if (error) {
+        console.log("User doesn't exist. Creating account...");
+        // Create a new user if sign in fails
+        const { data: signUpData, error: signUpError } = await supabase.auth.signUp({
+          email: `${address.toLowerCase()}@example.com`,
+          password: 'password123',
+          options: {
+            data: {
+              wallet_address: address.toLowerCase()
+            }
+          }
+        });
+        
+        if (signUpError) {
+          throw signUpError;
+        }
+        
+        console.log("Account created successfully:", signUpData);
+        return;
+      }
+      
+      console.log("Signed in with Supabase successfully:", data);
+    } catch (error) {
+      console.error("Error signing in with Supabase:", error);
+    }
   };
 
   // Listen for changes to wallet accounts
   useEffect(() => {
-    const onAccountsChanged = (accounts: string[]) => {
+    const onAccountsChanged = async (accounts: string[]) => {
       console.log("Accounts changed:", accounts);
       if (accounts.length > 0) {
         setAccount(accounts[0]);
@@ -139,6 +184,9 @@ export const Web3Provider: React.FC<{ children: React.ReactNode }> = ({ children
             setNetworkId(network.chainId);
             console.log("Network updated:", network.name, "with chainId:", network.chainId);
           });
+          
+          // Sign in with Supabase
+          await signInWithSupabase(accounts[0]);
         }
       } else {
         setAccount(null);
@@ -147,6 +195,9 @@ export const Web3Provider: React.FC<{ children: React.ReactNode }> = ({ children
         setSigner(null);
         setNetworkName(null);
         setNetworkId(null);
+        
+        // Sign out from Supabase
+        supabase.auth.signOut();
       }
     };
     
