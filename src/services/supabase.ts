@@ -242,6 +242,15 @@ export const getStudentsForInstitute = async (instituteId: string) => {
 // Certificate Services
 export const uploadCertificateToDb = async (studentId: string, instituteId: string, ipfsHash: string) => {
   try {
+    // Check authentication status before proceeding
+    const { data: session } = await supabase.auth.getSession();
+    if (!session?.session) {
+      console.error("No active Supabase session when attempting to upload certificate");
+      throw new Error("Authentication required to upload certificate");
+    }
+    
+    console.log("Attempting to insert certificate with params:", { studentId, instituteId, ipfsHash });
+    
     const { data, error } = await supabase
       .from('certificates')
       .insert({

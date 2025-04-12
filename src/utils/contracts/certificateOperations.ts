@@ -22,6 +22,8 @@ export const uploadCertificate = async (
     const studentId = await getStudentIdFromAddress(studentAddress);
     const instituteId = await getInstituteIdFromAddress(instituteAddress);
     
+    console.log("Institute ID lookup result:", instituteId);
+    
     if (!studentId) {
       throw new Error("Student not found");
     }
@@ -30,16 +32,43 @@ export const uploadCertificate = async (
       throw new Error("Institute not found");
     }
     
+    // Check authentication status
+    const { data: session } = await supabase.auth.getSession();
+    if (!session?.session) {
+      console.log("No active Supabase session, attempting to authenticate");
+      
+      // Get a temporary token from the backend (simplified for this example)
+      // In a production environment, you would want to implement a proper authentication flow
+      const { data: authData, error: authError } = await supabase.auth.signInWithPassword({
+        email: `${instituteAddress.toLowerCase()}@example.com`,
+        password: 'password123'
+      });
+      
+      if (authError) {
+        console.error("Authentication error:", authError);
+        throw new Error(`Authentication failed: ${authError.message}`);
+      }
+      
+      console.log("Authentication successful:", authData);
+    } else {
+      console.log("Found existing Supabase session");
+    }
+    
     // Upload to database
-    const result = await uploadCertificateToDb(studentId, instituteId, ipfsHash);
-    console.log("Certificate uploaded to database:", result);
+    try {
+      const result = await uploadCertificateToDb(studentId, instituteId, ipfsHash);
+      console.log("Certificate uploaded to database:", result);
+    } catch (dbError) {
+      console.error("Error in uploadCertificateToDb:", dbError);
+      throw dbError;
+    }
 
     // We would here normally interact with blockchain but it's simulated
     await new Promise(resolve => setTimeout(resolve, 1000));
     
     return true;
   } catch (error) {
-    console.error("Error uploading certificate to database:", error);
+    console.error("Error uploading certificate:", error);
     throw new Error(`Failed to upload certificate: ${error instanceof Error ? error.message : String(error)}`);
   }
 };
@@ -50,6 +79,26 @@ export const approveCertificate = async (
 ): Promise<boolean> => {
   try {
     console.log(`Approving certificate ${certificateId}`);
+    
+    // Check authentication status
+    const { data: session } = await supabase.auth.getSession();
+    if (!session?.session) {
+      console.log("No active Supabase session, attempting to authenticate");
+      
+      // Get institute address
+      const instituteAddress = await signer.getAddress();
+      
+      // Authenticate
+      const { error: authError } = await supabase.auth.signInWithPassword({
+        email: `${instituteAddress.toLowerCase()}@example.com`,
+        password: 'password123'
+      });
+      
+      if (authError) {
+        console.error("Authentication error:", authError);
+        throw new Error(`Authentication failed: ${authError.message}`);
+      }
+    }
     
     // Simulate blockchain transaction
     await new Promise(resolve => setTimeout(resolve, 1000));
@@ -70,6 +119,23 @@ export const getPendingCertificates = async (
   try {
     const instituteAddress = await signer.getAddress();
     console.log(`Getting pending certificates for institute ${instituteAddress}`);
+    
+    // Check authentication status
+    const { data: session } = await supabase.auth.getSession();
+    if (!session?.session) {
+      console.log("No active Supabase session, attempting to authenticate");
+      
+      // Authenticate
+      const { error: authError } = await supabase.auth.signInWithPassword({
+        email: `${instituteAddress.toLowerCase()}@example.com`,
+        password: 'password123'
+      });
+      
+      if (authError) {
+        console.error("Authentication error:", authError);
+        throw new Error(`Authentication failed: ${authError.message}`);
+      }
+    }
     
     const instituteId = await getInstituteIdFromAddress(instituteAddress);
     
@@ -97,6 +163,26 @@ export const getAccessLogs = async (
 ): Promise<{ viewerAddress: string, timestamp: number }[]> => {
   try {
     console.log(`Getting access logs for certificate ${certificateId}`);
+    
+    // Check authentication status
+    const { data: session } = await supabase.auth.getSession();
+    if (!session?.session) {
+      console.log("No active Supabase session, attempting to authenticate");
+      
+      // Get institute address
+      const instituteAddress = await signer.getAddress();
+      
+      // Authenticate
+      const { error: authError } = await supabase.auth.signInWithPassword({
+        email: `${instituteAddress.toLowerCase()}@example.com`,
+        password: 'password123'
+      });
+      
+      if (authError) {
+        console.error("Authentication error:", authError);
+        throw new Error(`Authentication failed: ${authError.message}`);
+      }
+    }
     
     const logs = await getAccessLogsForCertificate(certificateId);
     
