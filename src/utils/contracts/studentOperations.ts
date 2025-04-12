@@ -1,10 +1,10 @@
 
 import { ethers } from 'ethers';
 import { supabase } from '@/integrations/supabase/client';
-import { getStudentIdFromAddress, getInstituteIdFromAddress } from './core';
+import { getStudentIdFromAddress, getInstituteIdFromAddress, getStudentByAddress } from './core';
 import { 
   registerStudentInDB, 
-  getStudentCertificates as getDbStudentCertificates,
+  getCertificatesForStudent as getDbStudentCertificates,
   grantAccessInDb
 } from '@/services/supabase';
 
@@ -202,4 +202,5 @@ export const requestInstituteChange = async (
 
 // Helper functions
 import { registerInstituteInDB, requestInstituteChangeInDb } from '@/services/supabase';
+// Export the getStudentByAddress function from core for external use
 export { getStudentByAddress } from './core';
